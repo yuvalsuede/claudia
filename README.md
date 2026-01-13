@@ -8,6 +8,7 @@ A CLI task manager designed for AI agents, with full MCP (Model Context Protocol
 - **State Machine**: Validated status transitions (pending → in_progress → completed)
 - **Dependencies**: Track task dependencies with automatic cycle detection
 - **Sprints**: Group tasks into sprints for organized work periods
+- **Projects**: Multi-project support with auto-detection from working directory
 - **Context Storage**: Store up to 64KB of JSON context per task for agent memory
 - **MCP Server**: Drop-in MCP server for Claude Code and other MCP-compatible clients
 - **Bulk Operations**: Atomic batch create, update, and transition operations
@@ -127,6 +128,32 @@ claudia sprint activate <sprint-id>
 claudia sprint active
 ```
 
+#### Projects
+
+Claudia supports multiple projects. Tasks and sprints are automatically scoped to the current project.
+
+```bash
+# Create a project
+claudia project create --name "My Project" --path /path/to/project
+
+# List projects
+claudia project list
+
+# Select a project
+claudia project select <project-id>
+
+# Show current project
+claudia project current
+
+# Auto-detect project from directory
+claudia project detect --cwd /path/to/project
+```
+
+When a project is selected:
+- New tasks/sprints are automatically assigned to that project
+- `task list`, `sprint list`, `task tree` filter by current project
+- Project can be auto-detected from working directory path
+
 #### Database
 
 ```bash
@@ -150,23 +177,59 @@ claudia mcp
 
 #### Claude Code Configuration
 
-Add to your Claude Code MCP settings:
+**Option 1: Project-specific** - Create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "claudia": {
-      "command": "claudia",
+      "command": "/path/to/claudia",
       "args": ["mcp"]
     }
   }
 }
 ```
 
+**Option 2: Global** - Add to `~/.claude.json` under `projects."/your/project".mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "claudia": {
+      "command": "/path/to/claudia",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Using with Bun (without building):**
+
+```json
+{
+  "mcpServers": {
+    "claudia": {
+      "command": "/Users/yourname/.bun/bin/bun",
+      "args": ["run", "/path/to/claudia/src/mcp/server.ts"],
+      "cwd": "/path/to/claudia"
+    }
+  }
+}
+```
+
+> **Note**: After adding the config, restart Claude Code for the MCP server to connect.
+
 #### Available MCP Tools
 
 | Tool | Description |
 |------|-------------|
+| `project_create` | Create a new project |
+| `project_list` | List all projects |
+| `project_read` | Get project by ID |
+| `project_update` | Update project fields |
+| `project_delete` | Delete a project |
+| `project_select` | Select working project |
+| `project_current` | Get current project context |
 | `task_create` | Create a new task |
 | `task_read` | Get task by ID |
 | `task_update` | Update task fields |
