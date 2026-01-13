@@ -1,25 +1,77 @@
 import type { Task } from "../schemas/task.js";
 import type { Sprint } from "../schemas/sprint.js";
 
-// Status icons - ASCII style
-const STATUS_ICONS: Record<string, string> = {
-  pending: "[ ]",
-  in_progress: "[>]",
-  blocked: "[X]",
-  completed: "[+]",
-  archived: "[-]",
+// ANSI color codes
+const COLORS = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+
+  // Foreground
+  black: "\x1b[30m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+
+  // Bright foreground
+  brightBlack: "\x1b[90m",
+  brightRed: "\x1b[91m",
+  brightGreen: "\x1b[92m",
+  brightYellow: "\x1b[93m",
+  brightBlue: "\x1b[94m",
+  brightMagenta: "\x1b[95m",
+  brightCyan: "\x1b[96m",
+  brightWhite: "\x1b[97m",
+
+  // Background
+  bgBlack: "\x1b[40m",
+  bgRed: "\x1b[41m",
+  bgGreen: "\x1b[42m",
+  bgYellow: "\x1b[43m",
+  bgBlue: "\x1b[44m",
+  bgMagenta: "\x1b[45m",
+  bgCyan: "\x1b[46m",
+  bgWhite: "\x1b[47m",
 };
 
-// Priority indicators - ASCII
-const PRIORITY_INDICATORS: Record<string, string> = {
-  p0: "!!!",
-  p1: "!! ",
-  p2: "!  ",
-  p3: "   ",
+const c = COLORS;
+
+// Status colors
+const STATUS_COLORS: Record<string, string> = {
+  pending: c.white,
+  in_progress: c.brightCyan,
+  blocked: c.brightRed,
+  completed: c.brightGreen,
+  archived: c.brightBlack,
 };
 
-// Task type indicators - short codes
-const TYPE_INDICATORS: Record<string, string> = {
+// Priority colors
+const PRIORITY_COLORS: Record<string, string> = {
+  p0: c.brightRed,
+  p1: c.brightYellow,
+  p2: c.brightBlue,
+  p3: c.brightBlack,
+};
+
+// Task type colors
+const TYPE_COLORS: Record<string, string> = {
+  feature: c.brightGreen,
+  bugfix: c.brightRed,
+  planning: c.brightMagenta,
+  development: c.brightCyan,
+  ui: c.brightYellow,
+  refactor: c.brightBlue,
+  docs: c.white,
+  test: c.brightMagenta,
+  chore: c.brightBlack,
+};
+
+// Task type short codes
+const TYPE_CODES: Record<string, string> = {
   feature: "FEA",
   bugfix: "BUG",
   planning: "PLN",
@@ -31,62 +83,80 @@ const TYPE_INDICATORS: Record<string, string> = {
   chore: "CHR",
 };
 
-// Sprint status - ASCII
-const SPRINT_STATUS_ICONS: Record<string, string> = {
-  planning: "[P]",
-  active: "[*]",
-  completed: "[+]",
-  archived: "[-]",
-};
-
 /**
- * Format a single task as a CLI line
+ * Format colored progress bar like htop
  */
-export function formatTaskLine(task: Task, indent = 0): string {
-  const status = STATUS_ICONS[task.status] || "[?]";
-  const priority = task.priority ? PRIORITY_INDICATORS[task.priority] : "   ";
-  const type = task.task_type ? TYPE_INDICATORS[task.task_type] : "   ";
-  const prefix = "  ".repeat(indent);
-  const idShort = task.id.slice(0, 8);
+export function formatProgressBar(completed: number, total: number, width = 20, label = ""): string {
+  if (total === 0) {
+    return `${label}[${c.brightBlack}${".".repeat(width)}${c.reset}]`;
+  }
 
-  return `${prefix}${status} ${priority} ${type} ${task.title} (${idShort})`;
+  const percent = (completed / total) * 100;
+  const filled = Math.round((completed / total) * width);
+  const empty = width - filled;
+
+  // Color gradient based on percentage
+  let barColor = c.green;
+  if (percent > 80) barColor = c.brightGreen;
+  else if (percent > 50) barColor = c.green;
+  else if (percent > 25) barColor = c.yellow;
+  else barColor = c.red;
+
+  const bar = `${barColor}${"|".repeat(filled)}${c.brightBlack}${".".repeat(empty)}${c.reset}`;
+  const stats = `${c.brightWhite}${completed}${c.reset}/${c.brightCyan}${total}${c.reset}`;
+
+  return `${label}[${bar}${c.reset}]${stats}`;
 }
 
 /**
- * Format task list as a table
+ * Format a single task line with colors
+ */
+export function formatTaskLine(task: Task, indent = 0): string {
+  const statusColor = STATUS_COLORS[task.status] || c.white;
+  const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : c.brightBlack;
+  const typeColor = task.task_type ? TYPE_COLORS[task.task_type] : c.brightBlack;
+
+  const prefix = "  ".repeat(indent);
+  const idShort = task.id.slice(0, 8);
+
+  const status = task.status.slice(0, 4).toUpperCase().padEnd(4);
+  const priority = task.priority ? task.priority.toUpperCase() : "   ";
+  const type = task.task_type ? TYPE_CODES[task.task_type] : "   ";
+
+  return `${prefix}${statusColor}${status}${c.reset} ${priorityColor}${priority}${c.reset} ${typeColor}${type}${c.reset} ${task.title} ${c.brightBlack}(${idShort})${c.reset}`;
+}
+
+/**
+ * Format task table like htop process list
  */
 export function formatTaskTable(tasks: Task[]): string {
   if (tasks.length === 0) {
-    return `
-+-------------------------------------------+
-|            NO TASKS FOUND                 |
-+-------------------------------------------+`;
+    return `${c.brightBlack}  No tasks found${c.reset}`;
   }
 
   const lines: string[] = [];
-  const maxTitleLen = Math.min(35, Math.max(20, ...tasks.map(t => t.title.length)));
 
-  // Header
-  lines.push("+" + "-".repeat(6) + "+" + "-".repeat(5) + "+" + "-".repeat(5) + "+" + "-".repeat(maxTitleLen + 2) + "+" + "-".repeat(10) + "+");
-  lines.push("| STAT | PRI | TYP | " + "TITLE".padEnd(maxTitleLen) + " | ID       |");
-  lines.push("+" + "-".repeat(6) + "+" + "-".repeat(5) + "+" + "-".repeat(5) + "+" + "-".repeat(maxTitleLen + 2) + "+" + "-".repeat(10) + "+");
+  // Header row with background color (htop style)
+  const header = `${c.bgGreen}${c.black}  ID       STATUS      PRI  TYPE TITLE                                    ${c.reset}`;
+  lines.push(header);
 
   // Tasks
   for (const task of tasks) {
-    const status = STATUS_ICONS[task.status] || "[?]";
-    const priority = task.priority ? PRIORITY_INDICATORS[task.priority] : "   ";
-    const type = task.task_type ? TYPE_INDICATORS[task.task_type] : "   ";
-    const title = task.title.length > maxTitleLen
-      ? task.title.slice(0, maxTitleLen - 3) + "..."
-      : task.title.padEnd(maxTitleLen);
-    const idShort = task.id.slice(0, 8);
+    const statusColor = STATUS_COLORS[task.status] || c.white;
+    const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : c.brightBlack;
+    const typeColor = task.task_type ? TYPE_COLORS[task.task_type] : c.brightBlack;
 
-    lines.push(`| ${status} | ${priority} | ${type} | ${title} | ${idShort} |`);
+    const id = task.id.slice(0, 8);
+    const status = task.status.padEnd(11);
+    const priority = (task.priority || "   ").padEnd(4);
+    const type = (task.task_type ? TYPE_CODES[task.task_type] : "   ").padEnd(4);
+    const title = task.title.length > 40 ? task.title.slice(0, 37) + "..." : task.title.padEnd(40);
+
+    lines.push(`  ${c.cyan}${id}${c.reset} ${statusColor}${status}${c.reset} ${priorityColor}${priority}${c.reset} ${typeColor}${type}${c.reset} ${title}`);
   }
 
-  // Footer
-  lines.push("+" + "-".repeat(6) + "+" + "-".repeat(5) + "+" + "-".repeat(5) + "+" + "-".repeat(maxTitleLen + 2) + "+" + "-".repeat(10) + "+");
-  lines.push(`  Total: ${tasks.length} tasks`);
+  lines.push("");
+  lines.push(`${c.brightBlack}  Total: ${tasks.length} tasks${c.reset}`);
 
   return lines.join("\n");
 }
@@ -104,16 +174,23 @@ export function formatTaskTree(tasks: Task[], parentId?: string, indent = 0): st
     const prefix = indent === 0 ? "" : (isLast ? "`-- " : "|-- ");
     const continuePrefix = indent === 0 ? "" : (isLast ? "    " : "|   ");
 
-    const status = STATUS_ICONS[task.status] || "[?]";
-    const priority = task.priority ? PRIORITY_INDICATORS[task.priority] : "   ";
-    const type = task.task_type ? TYPE_INDICATORS[task.task_type] : "   ";
+    const statusColor = STATUS_COLORS[task.status] || c.white;
+    const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : c.brightBlack;
 
-    lines.push("    ".repeat(Math.max(0, indent - 1)) + prefix + `${status} ${priority} ${type} ${task.title}`);
+    const status = task.status.slice(0, 4).toUpperCase();
+    const priority = task.priority || "  ";
+
+    lines.push(
+      `${c.brightBlack}${"    ".repeat(Math.max(0, indent - 1))}${prefix}${c.reset}` +
+      `${statusColor}${status}${c.reset} ${priorityColor}${priority}${c.reset} ${task.title}`
+    );
 
     // Recursively add children
     const childLines = formatTaskTree(tasks, task.id, indent + 1);
     if (childLines) {
-      lines.push(...childLines.split("\n").map(l => "    ".repeat(Math.max(0, indent - 1)) + continuePrefix + l));
+      lines.push(...childLines.split("\n").map(l =>
+        `${c.brightBlack}${"    ".repeat(Math.max(0, indent - 1))}${continuePrefix}${c.reset}${l}`
+      ));
     }
   }
 
@@ -121,58 +198,39 @@ export function formatTaskTree(tasks: Task[], parentId?: string, indent = 0): st
 }
 
 /**
- * Format progress bar - ASCII style with |
- */
-export function formatProgressBar(completed: number, total: number, width = 30): string {
-  if (total === 0) return `[${".".repeat(width)}] 0%`;
-
-  const percent = Math.round((completed / total) * 100);
-  const filled = Math.round((completed / total) * width);
-  const empty = width - filled;
-
-  return `[${"|".repeat(filled)}${".".repeat(empty)}] ${percent}% (${completed}/${total})`;
-}
-
-/**
- * Format sprint card
+ * Format sprint card with htop-style meters
  */
 export function formatSprintCard(sprint: Sprint & { tasks?: Task[]; task_counts?: Record<string, number> }): string {
   const lines: string[] = [];
-  const width = 50;
-  const statusIcon = SPRINT_STATUS_ICONS[sprint.status] || "[?]";
 
-  lines.push("+" + "=".repeat(width) + "+");
-  lines.push("| " + `${statusIcon} ${sprint.name}`.padEnd(width - 1) + "|");
-  lines.push("+" + "=".repeat(width) + "+");
+  // Sprint header
+  const statusColor = sprint.status === "active" ? c.brightGreen :
+                      sprint.status === "completed" ? c.brightBlue : c.white;
 
-  // Status
-  lines.push("| " + `Status: ${sprint.status}`.padEnd(width - 1) + "|");
+  lines.push(`${c.bold}${c.bgBlue}${c.white} SPRINT: ${sprint.name} ${c.reset}`);
+  lines.push(`  Status: ${statusColor}${sprint.status}${c.reset}`);
 
-  // Dates
   if (sprint.start_at || sprint.end_at) {
-    const dateStr = `${sprint.start_at?.slice(0, 10) || "?"} -> ${sprint.end_at?.slice(0, 10) || "?"}`;
-    lines.push("| " + `Dates:  ${dateStr}`.padEnd(width - 1) + "|");
+    lines.push(`  ${c.brightBlack}${sprint.start_at?.slice(0, 10) || "?"} -> ${sprint.end_at?.slice(0, 10) || "?"}${c.reset}`);
   }
 
-  // Task counts if available
+  // Task progress meters (htop style)
   if (sprint.task_counts) {
-    lines.push("+" + "-".repeat(width) + "+");
     const total = Object.values(sprint.task_counts).reduce((a, b) => a + b, 0);
     const completed = sprint.task_counts.completed || 0;
+    const inProgress = sprint.task_counts.in_progress || 0;
+    const blocked = sprint.task_counts.blocked || 0;
+    const pending = sprint.task_counts.pending || 0;
 
-    lines.push("| " + `Tasks:  ${total}`.padEnd(width - 1) + "|");
-    lines.push("| " + formatProgressBar(completed, total, width - 12).padEnd(width - 1) + "|");
+    lines.push("");
+    lines.push(`  ${formatProgressBar(completed, total, 30, `${c.brightWhite}Done ${c.reset}`)}`);
 
-    // Status breakdown
-    lines.push("| " + " ".repeat(width - 1) + "|");
-    for (const [status, count] of Object.entries(sprint.task_counts)) {
-      const icon = STATUS_ICONS[status] || "[?]";
-      const bar = "|".repeat(Math.min(20, Math.round((count / total) * 20)));
-      lines.push("| " + `  ${icon} ${status.padEnd(12)} ${bar.padEnd(20)} ${count}`.padEnd(width - 1) + "|");
-    }
+    // Status breakdown with mini bars
+    lines.push(`  ${c.brightGreen}+${c.reset} completed   [${c.brightGreen}${"|".repeat(Math.min(15, completed))}${c.reset}] ${completed}`);
+    lines.push(`  ${c.brightCyan}>${c.reset} in_progress [${c.brightCyan}${"|".repeat(Math.min(15, inProgress))}${c.reset}] ${inProgress}`);
+    lines.push(`  ${c.brightRed}x${c.reset} blocked     [${c.brightRed}${"|".repeat(Math.min(15, blocked))}${c.reset}] ${blocked}`);
+    lines.push(`  ${c.white}o${c.reset} pending     [${c.white}${"|".repeat(Math.min(15, pending))}${c.reset}] ${pending}`);
   }
-
-  lines.push("+" + "=".repeat(width) + "+");
 
   return lines.join("\n");
 }
@@ -182,42 +240,39 @@ export function formatSprintCard(sprint: Sprint & { tasks?: Task[]; task_counts?
  */
 export function formatSprintList(sprints: Array<Sprint & { task_counts?: Record<string, number> }>): string {
   if (sprints.length === 0) {
-    return `
-+-------------------------------------------+
-|           NO SPRINTS FOUND                |
-+-------------------------------------------+`;
+    return `${c.brightBlack}  No sprints found${c.reset}`;
   }
 
   const lines: string[] = [];
-  const width = 70;
 
-  lines.push("+" + "-".repeat(5) + "+" + "-".repeat(25) + "+" + "-".repeat(12) + "+" + "-".repeat(24) + "+");
-  lines.push("| ST  | " + "NAME".padEnd(23) + " | " + "STATUS".padEnd(10) + " | " + "PROGRESS".padEnd(22) + " |");
-  lines.push("+" + "-".repeat(5) + "+" + "-".repeat(25) + "+" + "-".repeat(12) + "+" + "-".repeat(24) + "+");
+  // Header
+  lines.push(`${c.bgGreen}${c.black} ST  NAME                     STATUS      PROGRESS              ${c.reset}`);
 
   for (const sprint of sprints) {
-    const statusIcon = SPRINT_STATUS_ICONS[sprint.status] || "[?]";
-    const name = sprint.name.length > 23 ? sprint.name.slice(0, 20) + "..." : sprint.name.padEnd(23);
+    const statusColor = sprint.status === "active" ? c.brightGreen :
+                        sprint.status === "completed" ? c.brightBlue : c.white;
 
-    let progress = "N/A";
+    const name = sprint.name.length > 23 ? sprint.name.slice(0, 20) + "..." : sprint.name.padEnd(23);
+    const status = sprint.status.padEnd(11);
+
+    let progress = "";
     if (sprint.task_counts) {
       const total = Object.values(sprint.task_counts).reduce((a, b) => a + b, 0);
       const completed = sprint.task_counts.completed || 0;
+      const filled = total > 0 ? Math.round((completed / total) * 15) : 0;
       const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-      const bar = "|".repeat(Math.round(percent / 10));
-      progress = `${bar.padEnd(10)} ${percent}%`.padEnd(22);
+      progress = `${c.green}${"|".repeat(filled)}${c.brightBlack}${".".repeat(15 - filled)}${c.reset} ${percent}%`;
     }
 
-    lines.push(`| ${statusIcon} | ${name} | ${sprint.status.padEnd(10)} | ${progress} |`);
+    const marker = sprint.status === "active" ? `${c.brightGreen}*${c.reset}` : " ";
+    lines.push(` ${marker}  ${name} ${statusColor}${status}${c.reset} ${progress}`);
   }
-
-  lines.push("+" + "-".repeat(5) + "+" + "-".repeat(25) + "+" + "-".repeat(12) + "+" + "-".repeat(24) + "+");
 
   return lines.join("\n");
 }
 
 /**
- * Format project summary with tasks and sprints
+ * Format project summary like htop header
  */
 export function formatProjectSummary(
   projectName: string,
@@ -225,34 +280,43 @@ export function formatProjectSummary(
   sprints: Array<Sprint & { task_counts?: Record<string, number> }>
 ): string {
   const lines: string[] = [];
-  const width = 50;
 
-  // Header
-  lines.push("+" + "=".repeat(width) + "+");
-  lines.push("| " + `PROJECT: ${projectName}`.padEnd(width - 1) + "|");
-  lines.push("+" + "=".repeat(width) + "+");
-  lines.push("");
-
-  // Task summary by status
+  // Count tasks by status
   const statusCounts = tasks.reduce((acc, t) => {
     acc[t.status] = (acc[t.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  lines.push("TASK SUMMARY");
-  lines.push("-".repeat(width));
-
   const total = tasks.length;
   const completed = statusCounts.completed || 0;
-  lines.push(formatProgressBar(completed, total, 40));
+  const inProgress = statusCounts.in_progress || 0;
+  const blocked = statusCounts.blocked || 0;
+  const pending = statusCounts.pending || 0;
+
+  // Header like htop
+  lines.push(`${c.bold}${c.bgBlue}${c.white} ${projectName} ${c.reset}`);
   lines.push("");
 
-  for (const [status, count] of Object.entries(statusCounts)) {
-    const icon = STATUS_ICONS[status] || "[?]";
-    const barLen = total > 0 ? Math.round((count / total) * 30) : 0;
-    const bar = "|".repeat(barLen);
-    lines.push(`  ${icon} ${status.padEnd(12)} ${bar.padEnd(30)} ${count}`);
-  }
+  // CPU-style task meters
+  lines.push(`  ${c.brightWhite}Tasks:${c.reset} ${total}   ${c.brightGreen}+${completed}${c.reset} ${c.brightCyan}>${inProgress}${c.reset} ${c.brightRed}x${blocked}${c.reset} ${c.white}o${pending}${c.reset}`);
+  lines.push("");
+
+  // Progress bars for each status (htop meter style)
+  const barWidth = 25;
+
+  const completedBar = Math.round((completed / Math.max(total, 1)) * barWidth);
+  const inProgressBar = Math.round((inProgress / Math.max(total, 1)) * barWidth);
+  const blockedBar = Math.round((blocked / Math.max(total, 1)) * barWidth);
+  const pendingBar = Math.round((pending / Math.max(total, 1)) * barWidth);
+
+  lines.push(`  1  [${c.brightGreen}${"|".repeat(completedBar)}${c.brightBlack}${".".repeat(barWidth - completedBar)}${c.reset}] ${c.brightGreen}${Math.round((completed / Math.max(total, 1)) * 100)}%${c.reset}  completed`);
+  lines.push(`  2  [${c.brightCyan}${"|".repeat(inProgressBar)}${c.brightBlack}${".".repeat(barWidth - inProgressBar)}${c.reset}] ${c.brightCyan}${Math.round((inProgress / Math.max(total, 1)) * 100)}%${c.reset}  in_progress`);
+  lines.push(`  3  [${c.brightRed}${"|".repeat(blockedBar)}${c.brightBlack}${".".repeat(barWidth - blockedBar)}${c.reset}] ${c.brightRed}${Math.round((blocked / Math.max(total, 1)) * 100)}%${c.reset}  blocked`);
+  lines.push(`  4  [${c.white}${"|".repeat(pendingBar)}${c.brightBlack}${".".repeat(barWidth - pendingBar)}${c.reset}] ${c.white}${Math.round((pending / Math.max(total, 1)) * 100)}%${c.reset}  pending`);
+
+  // Overall progress meter
+  lines.push("");
+  lines.push(`  ${formatProgressBar(completed, total, 30, `${c.brightWhite}Done ${c.reset}`)}`);
 
   // Task type breakdown
   const typeCounts = tasks.reduce((acc, t) => {
@@ -264,11 +328,11 @@ export function formatProjectSummary(
 
   if (Object.keys(typeCounts).length > 0) {
     lines.push("");
-    lines.push("BY TYPE");
-    lines.push("-".repeat(width));
+    lines.push(`  ${c.bold}By Type:${c.reset}`);
     for (const [type, count] of Object.entries(typeCounts)) {
-      const icon = TYPE_INDICATORS[type] || "???";
-      lines.push(`  ${icon} ${type.padEnd(12)} ${count}`);
+      const typeColor = TYPE_COLORS[type] || c.white;
+      const code = TYPE_CODES[type] || "???";
+      lines.push(`    ${typeColor}${code}${c.reset} ${type.padEnd(12)} ${count}`);
     }
   }
 
@@ -276,9 +340,7 @@ export function formatProjectSummary(
   const activeSprint = sprints.find(s => s.status === "active");
   if (activeSprint) {
     lines.push("");
-    lines.push("ACTIVE SPRINT");
-    lines.push("-".repeat(width));
-    lines.push(formatSprintCard(activeSprint));
+    lines.push(`  ${c.bold}Active Sprint:${c.reset} ${c.brightGreen}${activeSprint.name}${c.reset}`);
   }
 
   return lines.join("\n");
@@ -289,68 +351,66 @@ export function formatProjectSummary(
  */
 export function formatTaskCard(task: Task): string {
   const lines: string[] = [];
-  const width = 60;
 
-  const status = STATUS_ICONS[task.status] || "[?]";
-  const priority = task.priority ? PRIORITY_INDICATORS[task.priority] : "   ";
-  const type = task.task_type ? `${TYPE_INDICATORS[task.task_type]} ${task.task_type}` : "";
+  const statusColor = STATUS_COLORS[task.status] || c.white;
+  const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : c.brightBlack;
+  const typeColor = task.task_type ? TYPE_COLORS[task.task_type] : c.brightBlack;
 
-  lines.push("+" + "=".repeat(width) + "+");
-  lines.push("| " + `${status} ${priority} ${task.title}`.slice(0, width - 2).padEnd(width - 1) + "|");
-  lines.push("+" + "=".repeat(width) + "+");
+  // Header
+  lines.push(`${c.bgBlue}${c.white}${c.bold} TASK: ${task.title.slice(0, 50)} ${c.reset}`);
+  lines.push("");
 
   // ID
-  lines.push("| " + `ID:       ${task.id}`.padEnd(width - 1) + "|");
+  lines.push(`  ${c.brightBlack}ID:${c.reset}       ${c.cyan}${task.id}${c.reset}`);
 
-  // Status & Priority
-  lines.push("| " + `Status:   ${task.status}`.padEnd(28) + `Priority: ${task.priority || "none"}`.padEnd(width - 29) + "|");
+  // Status and Priority on same line
+  lines.push(`  ${c.brightBlack}Status:${c.reset}   ${statusColor}${task.status}${c.reset}    ${c.brightBlack}Priority:${c.reset} ${priorityColor}${task.priority || "none"}${c.reset}`);
 
   // Type
-  if (type) {
-    lines.push("| " + `Type:     ${type}`.padEnd(width - 1) + "|");
+  if (task.task_type) {
+    lines.push(`  ${c.brightBlack}Type:${c.reset}     ${typeColor}${TYPE_CODES[task.task_type]} ${task.task_type}${c.reset}`);
   }
 
   // Description
   if (task.description) {
-    lines.push("+" + "-".repeat(width) + "+");
+    lines.push("");
+    lines.push(`  ${c.brightBlack}Description:${c.reset}`);
     const descLines = task.description.split("\n");
     for (const line of descLines.slice(0, 5)) {
-      const truncated = line.length > width - 3 ? line.slice(0, width - 6) + "..." : line;
-      lines.push("| " + truncated.padEnd(width - 1) + "|");
+      lines.push(`    ${line.slice(0, 70)}`);
     }
     if (descLines.length > 5) {
-      lines.push("| " + `... (${descLines.length - 5} more lines)`.padEnd(width - 1) + "|");
+      lines.push(`    ${c.brightBlack}... (${descLines.length - 5} more lines)${c.reset}`);
     }
   }
 
   // Metadata
-  lines.push("+" + "-".repeat(width) + "+");
+  lines.push("");
   if (task.assignee) {
-    lines.push("| " + `Assignee: ${task.assignee}`.padEnd(width - 1) + "|");
+    lines.push(`  ${c.brightBlack}Assignee:${c.reset} ${c.brightYellow}${task.assignee}${c.reset}`);
   }
   if (task.due_at) {
-    lines.push("| " + `Due:      ${task.due_at.slice(0, 10)}`.padEnd(width - 1) + "|");
+    lines.push(`  ${c.brightBlack}Due:${c.reset}      ${c.brightRed}${task.due_at.slice(0, 10)}${c.reset}`);
   }
   if (task.tags && task.tags.length > 0) {
-    lines.push("| " + `Tags:     ${task.tags.join(", ")}`.slice(0, width - 2).padEnd(width - 1) + "|");
+    lines.push(`  ${c.brightBlack}Tags:${c.reset}     ${c.brightMagenta}${task.tags.join(", ")}${c.reset}`);
   }
   if (task.images && task.images.length > 0) {
-    lines.push("| " + `Images:   ${task.images.length} attached`.padEnd(width - 1) + "|");
+    lines.push(`  ${c.brightBlack}Images:${c.reset}   ${task.images.length} attached`);
   }
 
-  lines.push("+" + "-".repeat(width) + "+");
-  lines.push("| " + `Created:  ${task.created_at.slice(0, 10)}`.padEnd(28) + `Version: ${task.version}`.padEnd(width - 29) + "|");
-  lines.push("+" + "=".repeat(width) + "+");
+  lines.push("");
+  lines.push(`  ${c.brightBlack}Created:${c.reset}  ${task.created_at.slice(0, 10)}    ${c.brightBlack}Version:${c.reset} ${task.version}`);
 
   return lines.join("\n");
 }
 
 /**
- * Format kanban-style board
+ * Format kanban board with colors
  */
 export function formatKanbanBoard(tasks: Task[]): string {
   const columns = ["pending", "in_progress", "blocked", "completed"];
-  const colWidth = 22;
+  const colWidth = 24;
   const lines: string[] = [];
 
   // Group tasks by status
@@ -359,73 +419,74 @@ export function formatKanbanBoard(tasks: Task[]): string {
     return acc;
   }, {} as Record<string, Task[]>);
 
-  // Header
-  lines.push("+" + columns.map(() => "-".repeat(colWidth)).join("+") + "+");
-  lines.push("|" + columns.map(s => {
-    const icon = STATUS_ICONS[s];
-    const count = byStatus[s].length;
-    return ` ${icon} ${s.slice(0, 10)} (${count})`.padEnd(colWidth);
-  }).join("|") + "|");
-  lines.push("+" + columns.map(() => "-".repeat(colWidth)).join("+") + "+");
+  // Header with colored backgrounds
+  const headers = columns.map(status => {
+    const color = status === "pending" ? `${c.bgWhite}${c.black}` :
+                  status === "in_progress" ? `${c.bgCyan}${c.black}` :
+                  status === "blocked" ? `${c.bgRed}${c.white}` :
+                  `${c.bgGreen}${c.black}`;
+    const count = byStatus[status].length;
+    return `${color} ${status.slice(0, 10).toUpperCase().padEnd(10)} (${count}) ${c.reset}`;
+  });
+  lines.push(headers.join(" "));
+  lines.push("");
 
   // Find max rows needed
   const maxRows = Math.max(...Object.values(byStatus).map(t => t.length), 1);
 
   // Tasks
-  for (let i = 0; i < Math.min(maxRows, 10); i++) {
+  for (let i = 0; i < Math.min(maxRows, 12); i++) {
     const row = columns.map(status => {
       const task = byStatus[status][i];
       if (!task) return " ".repeat(colWidth);
 
-      const priority = task.priority ? PRIORITY_INDICATORS[task.priority] : "   ";
-      const title = task.title.length > colWidth - 6
-        ? task.title.slice(0, colWidth - 9) + "..."
-        : task.title;
-      return ` ${priority} ${title}`.padEnd(colWidth);
+      const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : c.brightBlack;
+      const pri = task.priority ? task.priority.slice(1) : " ";
+      const title = task.title.length > colWidth - 4
+        ? task.title.slice(0, colWidth - 7) + "..."
+        : task.title.padEnd(colWidth - 4);
+      return `${priorityColor}${pri}${c.reset} ${title}`;
     });
-    lines.push("|" + row.join("|") + "|");
+    lines.push(row.join(" "));
   }
 
-  if (maxRows > 10) {
-    lines.push("|" + columns.map(status => {
-      const remaining = byStatus[status].length - 10;
-      return remaining > 0 ? ` ... +${remaining} more`.padEnd(colWidth) : " ".repeat(colWidth);
-    }).join("|") + "|");
+  if (maxRows > 12) {
+    const overflow = columns.map(status => {
+      const remaining = byStatus[status].length - 12;
+      return remaining > 0
+        ? `${c.brightBlack}  +${remaining} more${c.reset}`.padEnd(colWidth + 10)
+        : " ".repeat(colWidth);
+    });
+    lines.push(overflow.join(" "));
   }
-
-  lines.push("+" + columns.map(() => "-".repeat(colWidth)).join("+") + "+");
 
   return lines.join("\n");
 }
 
 /**
- * Legend for status and priority icons
+ * Legend with colors
  */
 export function formatLegend(): string {
   const lines: string[] = [];
 
-  lines.push("+==============================================+");
-  lines.push("|                   LEGEND                     |");
-  lines.push("+==============================================+");
-  lines.push("|                                              |");
-  lines.push("| STATUS:                                      |");
-  lines.push("|   [ ] pending      [>] in_progress           |");
-  lines.push("|   [X] blocked      [+] completed             |");
-  lines.push("|   [-] archived                               |");
-  lines.push("|                                              |");
-  lines.push("| PRIORITY:                                    |");
-  lines.push("|   !!! p0 (critical)   !!  p1 (high)          |");
-  lines.push("|   !   p2 (medium)         p3 (low)           |");
-  lines.push("|                                              |");
-  lines.push("| TYPES:                                       |");
-  lines.push("|   FEA feature    BUG bugfix    PLN planning  |");
-  lines.push("|   DEV develop    UI  ui        REF refactor  |");
-  lines.push("|   DOC docs       TST test      CHR chore     |");
-  lines.push("|                                              |");
-  lines.push("| PROGRESS BAR:                                |");
-  lines.push("|   [||||||||||..........] 50% (5/10)          |");
-  lines.push("|                                              |");
-  lines.push("+==============================================+");
+  lines.push(`${c.bgBlue}${c.white}${c.bold} LEGEND ${c.reset}`);
+  lines.push("");
+  lines.push(`  ${c.bold}STATUS:${c.reset}`);
+  lines.push(`    ${c.white}o${c.reset} pending      ${c.brightCyan}>${c.reset} in_progress`);
+  lines.push(`    ${c.brightRed}x${c.reset} blocked      ${c.brightGreen}+${c.reset} completed`);
+  lines.push(`    ${c.brightBlack}-${c.reset} archived`);
+  lines.push("");
+  lines.push(`  ${c.bold}PRIORITY:${c.reset}`);
+  lines.push(`    ${c.brightRed}p0${c.reset} critical    ${c.brightYellow}p1${c.reset} high`);
+  lines.push(`    ${c.brightBlue}p2${c.reset} medium      ${c.brightBlack}p3${c.reset} low`);
+  lines.push("");
+  lines.push(`  ${c.bold}TYPES:${c.reset}`);
+  lines.push(`    ${c.brightGreen}FEA${c.reset} feature     ${c.brightRed}BUG${c.reset} bugfix      ${c.brightMagenta}PLN${c.reset} planning`);
+  lines.push(`    ${c.brightCyan}DEV${c.reset} development ${c.brightYellow}UI ${c.reset} ui          ${c.brightBlue}REF${c.reset} refactor`);
+  lines.push(`    ${c.white}DOC${c.reset} docs        ${c.brightMagenta}TST${c.reset} test        ${c.brightBlack}CHR${c.reset} chore`);
+  lines.push("");
+  lines.push(`  ${c.bold}PROGRESS BAR:${c.reset}`);
+  lines.push(`    [${c.green}||||||||||${c.brightBlack}..........${c.reset}]${c.brightWhite}5${c.reset}/${c.brightCyan}10${c.reset}`);
 
   return lines.join("\n");
 }
