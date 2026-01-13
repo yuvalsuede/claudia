@@ -340,11 +340,22 @@ export async function startWebServer(port: number = 3333): Promise<void> {
     },
   });
 
-  console.log(`Dashboard running at http://localhost:${port}`);
+  const url = `http://localhost:${port}`;
+  console.log(`Dashboard running at ${url}`);
 
-  // Open browser
-  const openCmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-  Bun.spawn([openCmd, `http://localhost:${port}`]);
+  // Open browser using shell
+  const { execSync } = await import("child_process");
+  try {
+    if (process.platform === "darwin") {
+      execSync(`open "${url}"`);
+    } else if (process.platform === "win32") {
+      execSync(`start "${url}"`);
+    } else {
+      execSync(`xdg-open "${url}"`);
+    }
+  } catch (e) {
+    console.log(`Open ${url} in your browser`);
+  }
 
   // Keep server running
   await new Promise(() => {});
