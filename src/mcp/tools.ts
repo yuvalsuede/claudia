@@ -200,6 +200,25 @@ export const SprintActivateInput = z.object({
 
 // Tool definitions for MCP
 export const TOOL_DEFINITIONS = [
+  // WORKFLOW RULES - READ THIS FIRST
+  {
+    name: "workflow_info",
+    description: `MANDATORY WORKFLOW - READ BEFORE USING ANY TASK TOOLS:
+
+1. STARTING WORK: Before working on any task, you MUST call task_claim first
+   → This moves the task to "in_progress" automatically
+   → Example: task_claim(task_id, "claude-session-123")
+
+2. FINISHING WORK: After completing a task, call task_transition(id, "completed")
+
+3. NEVER work on a task without claiming it first!
+
+Returns the current workflow rules.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
   {
     name: "task_create",
     description: "Create a new task with optional parent, priority, and metadata. Returns the created task.",

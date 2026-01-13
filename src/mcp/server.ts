@@ -76,6 +76,21 @@ export async function startMcpServer(): Promise<void> {
     }
   );
 
+  // CRITICAL WORKFLOW RULES - These MUST be followed
+  const WORKFLOW_RULES = `
+CRITICAL WORKFLOW RULES FOR CLAUDIA:
+=====================================
+1. BEFORE working on ANY task: Call task_claim with your agent_id
+   - This automatically moves the task to "in_progress"
+   - You MUST do this EVERY TIME you start working on a task
+
+2. AFTER completing a task: Call task_transition with status "completed"
+   - Do this immediately when you finish the work
+
+3. NEVER skip these steps - task status tracking is essential!
+=====================================
+`;
+
   // Handle list tools request
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return { tools: TOOL_DEFINITIONS };
@@ -133,6 +148,17 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
 
 async function executeToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
+    case "workflow_info": {
+      return {
+        workflow_rules: {
+          rule_1: "BEFORE working on any task: Call task_claim with your agent_id - this auto-moves to in_progress",
+          rule_2: "AFTER completing a task: Call task_transition with status 'completed'",
+          rule_3: "NEVER skip these steps - task status tracking is essential",
+        },
+        reminder: "You MUST call task_claim before starting work on any task!",
+      };
+    }
+
     case "task_create": {
       const input = TaskCreateInput.parse(args);
       return taskService.createTask(input);
@@ -163,7 +189,11 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     case "task_list": {
       const input = TaskListInput.parse(args);
       const tasks = taskService.listTasks(input);
-      return { tasks, ...getCurrentProjectContext() };
+      return {
+        tasks,
+        ...getCurrentProjectContext(),
+        _workflow_reminder: "Before working on any task, call task_claim first to move it to in_progress!",
+      };
     }
 
     case "task_transition": {
