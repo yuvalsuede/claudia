@@ -49,11 +49,18 @@ import {
 } from "./tools.js";
 
 export async function startMcpServer(): Promise<void> {
-  // Auto-detect project based on current working directory
+  // Auto-detect or create project based on current working directory
   const cwd = process.cwd();
-  const detectedProject = projectService.autoDetectProject(cwd);
-  if (detectedProject) {
-    // Project auto-selected based on working directory
+  let project = projectService.autoDetectProject(cwd);
+
+  if (!project) {
+    // No project found - create one automatically
+    const projectName = cwd.split("/").pop() || "Untitled Project";
+    project = projectService.createProject({
+      name: projectName,
+      path: cwd,
+    });
+    projectService.selectProject(project.id);
   }
 
   const server = new Server(

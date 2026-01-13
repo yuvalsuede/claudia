@@ -221,18 +221,15 @@ claudia mcp
 
 #### Project Auto-Detection
 
-When the MCP server starts, it automatically detects and selects the project based on the current working directory. This means:
+When the MCP server starts, it automatically detects or creates a project based on the current working directory:
 
-1. **Create a project with a path:**
-   ```bash
-   claudia project create --name "My App" --path /path/to/myapp
-   ```
+1. **Add `.mcp.json` to your project directory** (see above)
+2. **Start Claude Code in that directory**
+3. The MCP server will:
+   - **Auto-detect** if a project with that path already exists
+   - **Auto-create** a new project (using the directory name) if none exists
 
-2. **Add `.mcp.json` to your project directory** (see above)
-
-3. **Start Claude Code in that directory** - the MCP server will automatically select the project
-
-All tasks and sprints created will be automatically assigned to the detected project. No need to manually call `project_select`.
+All tasks and sprints are automatically assigned to the current project. No manual setup required!
 
 #### Available MCP Tools
 
