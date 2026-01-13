@@ -26,6 +26,8 @@ import {
   DependencyAddInput,
   DependencyRemoveInput,
   DependencyGetInput,
+  TaskClaimInput,
+  TaskReleaseInput,
   SprintCreateInput,
   SprintReadInput,
   SprintUpdateInput,
@@ -214,6 +216,17 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
 
     case "task_ready": {
       return taskService.getReadyTasks();
+    }
+
+    // Claim/release tools
+    case "task_claim": {
+      const input = TaskClaimInput.parse(args);
+      return taskService.claimTask(input.task_id, input.agent_id);
+    }
+
+    case "task_release": {
+      const input = TaskReleaseInput.parse(args);
+      return taskService.releaseTask(input.task_id, input.agent_id);
     }
 
     // Sprint tools

@@ -23,6 +23,7 @@ export const TaskSchema = z.object({
   due_at: z.string().datetime().optional(),
   tags: z.array(z.string()).optional(),
   assignee: z.string().optional(),
+  agent_id: z.string().optional(), // Agent that owns/claimed this task
   estimate: z.number().int().positive().optional(),
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -43,6 +44,7 @@ export const CreateTaskInput = z.object({
   due_at: z.string().datetime().optional(),
   tags: z.array(z.string()).optional(),
   assignee: z.string().optional(),
+  agent_id: z.string().optional(),
   estimate: z.number().int().positive().optional(),
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -60,6 +62,7 @@ export const UpdateTaskInput = z.object({
   due_at: z.string().datetime().nullable().optional(),
   tags: z.array(z.string()).optional(),
   assignee: z.string().nullable().optional(),
+  agent_id: z.string().nullable().optional(),
   estimate: z.number().int().positive().nullable().optional(),
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -75,6 +78,7 @@ export const ListTasksQuery = z.object({
   sprint_id: z.string().uuid().optional(),
   tags: z.array(z.string()).optional(),
   assignee: z.string().optional(),
+  agent_id: z.string().optional(), // Filter by owning agent
   fields: z.array(z.string()).optional(),
   sort: z.array(z.string()).optional(),
   limit: z.number().int().positive().max(1000).optional(),

@@ -185,6 +185,8 @@ Add to your Claude Code MCP settings:
 | `task_dependencies` | Get task dependencies |
 | `task_blocked` | List blocked tasks |
 | `task_ready` | List ready tasks |
+| `task_claim` | Atomically claim a task for an agent |
+| `task_release` | Release a claimed task |
 | `sprint_create` | Create a sprint |
 | `sprint_list` | List sprints |
 | `sprint_show` | Get sprint details |
@@ -266,6 +268,119 @@ bun run typecheck
 | 3 | Conflict (e.g., version mismatch) |
 | 4 | Validation error |
 | 5 | Storage error |
+
+## Multi-Agent Coordination
+
+Claudia is designed to support multiple AI agents working on the same project simultaneously. This section describes patterns for effective multi-agent coordination.
+
+### Database Concurrency
+
+Claudia uses SQLite with WAL (Write-Ahead Logging) mode, enabling multiple agents to read and write concurrently without blocking each other.
+
+### Task Claiming
+
+Use `task_claim` to reserve a task for your agent before starting work:
+
+```typescript
+// Agent claims a task
+const result = await task_claim({
+  task_id: "uuid-of-task",
+  agent_id: "agent-1"  // Your unique agent identifier
+});
+
+if (result.success) {
+  // Task is now yours - proceed with work
+  await task_transition({ id: task_id, to: "in_progress" });
+} else {
+  // Another agent already claimed it
+  console.log(result.message); // "Task already claimed by agent: agent-2"
+}
+```
+
+When done or if you can't complete the task:
+
+```typescript
+// Release the task for others
+await task_release({ task_id: "uuid", agent_id: "agent-1" });
+```
+
+### Optimistic Locking
+
+For concurrent updates, use the `version` field to detect conflicts:
+
+```typescript
+// Read the task first
+const task = await task_read({ id: "uuid" });
+
+// Update with version check
+try {
+  await task_update({
+    id: task.id,
+    title: "Updated title",
+    version: task.version  // Pass current version
+  });
+} catch (error) {
+  if (error.code === 3) {  // CONFLICT
+    // Another agent modified the task - re-read and retry
+  }
+}
+```
+
+### Workflow Enforcement
+
+Agents must follow the state machine - you cannot skip states:
+
+```typescript
+// CORRECT: pending -> in_progress -> completed
+await task_transition({ id, to: "in_progress" });
+// ... do work ...
+await task_transition({ id, to: "completed" });
+
+// INCORRECT: This will fail with validation error
+await task_transition({ id, to: "completed" }); // Error: Cannot transition from pending to completed
+```
+
+### Recommended Multi-Agent Pattern
+
+1. **List ready tasks**: `task_ready` returns tasks with all dependencies satisfied
+2. **Claim a task**: `task_claim` atomically reserves the task
+3. **Start work**: `task_transition` to `in_progress`
+4. **Store progress**: Use `task_context_merge` to save state
+5. **Complete**: `task_transition` to `completed`
+6. **On failure**: `task_release` to let another agent take over
+
+```typescript
+// Example multi-agent workflow
+const readyTasks = await task_ready();
+for (const task of readyTasks) {
+  const claim = await task_claim({ task_id: task.id, agent_id: myAgentId });
+  if (claim.success) {
+    await task_transition({ id: task.id, to: "in_progress" });
+
+    try {
+      // Do the work, saving progress as you go
+      await task_context_merge({ id: task.id, context: { progress: "50%" } });
+
+      // Complete the work
+      await task_transition({ id: task.id, to: "completed" });
+    } catch (error) {
+      // Release so another agent can try
+      await task_release({ task_id: task.id, agent_id: myAgentId });
+    }
+    break; // Work on one task at a time
+  }
+}
+```
+
+### Error Handling
+
+When concurrent modifications occur, Claudia returns helpful error messages:
+
+- **Version mismatch**: "Version mismatch: expected 2, got 3. Task was modified by another process. Re-read the task and retry with the current version."
+- **Already claimed**: "Task already claimed by agent: agent-2"
+- **Concurrent modification**: "Concurrent modification detected. Another agent updated this task. Re-read the task and retry."
+
+Always handle exit code 3 (CONFLICT) by re-reading the task and retrying your operation.
 
 ## License
 

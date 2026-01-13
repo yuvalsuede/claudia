@@ -70,6 +70,14 @@ const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: "add_agent_id",
+    up: `
+      ALTER TABLE tasks ADD COLUMN agent_id TEXT;
+      CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id);
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

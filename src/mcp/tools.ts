@@ -115,6 +115,17 @@ export const DependencyGetInput = z.object({
   task_id: z.string().uuid().describe("Task ID"),
 });
 
+// Claim/release inputs
+export const TaskClaimInput = z.object({
+  task_id: z.string().uuid().describe("Task ID to claim"),
+  agent_id: z.string().min(1).describe("Agent identifier claiming the task"),
+});
+
+export const TaskReleaseInput = z.object({
+  task_id: z.string().uuid().describe("Task ID to release"),
+  agent_id: z.string().min(1).describe("Agent identifier releasing the task"),
+});
+
 // Sprint inputs
 export const SprintCreateInput = z.object({
   name: z.string().min(1).max(200).describe("Sprint name"),
@@ -391,6 +402,31 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {},
+    },
+  },
+  // Claim/release tools
+  {
+    name: "task_claim",
+    description: "Atomically claim a task for an agent. Only succeeds if task is unclaimed. Returns success status and task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID to claim" },
+        agent_id: { type: "string", description: "Agent identifier claiming the task" },
+      },
+      required: ["task_id", "agent_id"],
+    },
+  },
+  {
+    name: "task_release",
+    description: "Release a claimed task. Only succeeds if task is claimed by the specified agent.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID to release" },
+        agent_id: { type: "string", description: "Agent identifier releasing the task" },
+      },
+      required: ["task_id", "agent_id"],
     },
   },
   // Sprint tools

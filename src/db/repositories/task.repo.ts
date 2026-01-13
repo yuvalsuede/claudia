@@ -13,6 +13,7 @@ interface TaskRow {
   due_at: string | null;
   tags: string | null;
   assignee: string | null;
+  agent_id: string | null;
   estimate: number | null;
   context: string | null;
   metadata: string | null;
@@ -33,6 +34,7 @@ function rowToTask(row: TaskRow): Task {
     due_at: row.due_at ?? undefined,
     tags: row.tags ? JSON.parse(row.tags) : undefined,
     assignee: row.assignee ?? undefined,
+    agent_id: row.agent_id ?? undefined,
     estimate: row.estimate ?? undefined,
     context: row.context ? JSON.parse(row.context) : undefined,
     metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
@@ -49,9 +51,9 @@ export function createTask(id: string, input: CreateTaskInput): Task {
   const stmt = db.prepare(`
     INSERT INTO tasks (
       id, title, description, status, priority, parent_id, sprint_id,
-      due_at, tags, assignee, estimate, context, metadata, version, created_at, updated_at
+      due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
     )
   `);
 
@@ -66,6 +68,7 @@ export function createTask(id: string, input: CreateTaskInput): Task {
     input.due_at ?? null,
     input.tags ? JSON.stringify(input.tags) : null,
     input.assignee ?? null,
+    input.agent_id ?? null,
     input.estimate ?? null,
     input.context ? JSON.stringify(input.context) : null,
     input.metadata ? JSON.stringify(input.metadata) : null,
@@ -133,6 +136,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
     updates.push("assignee = ?");
     values.push(input.assignee);
   }
+  if (input.agent_id !== undefined) {
+    updates.push("agent_id = ?");
+    values.push(input.agent_id);
+  }
   if (input.estimate !== undefined) {
     updates.push("estimate = ?");
     values.push(input.estimate);
@@ -192,6 +199,11 @@ export function listTasks(query: ListTasksQuery = {}): Task[] {
   if (query.assignee !== undefined) {
     conditions.push("assignee = ?");
     values.push(query.assignee);
+  }
+
+  if (query.agent_id !== undefined) {
+    conditions.push("agent_id = ?");
+    values.push(query.agent_id);
   }
 
   let sql = "SELECT * FROM tasks";
@@ -272,8 +284,8 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
       db.prepare(`
         INSERT INTO tasks (
           id, title, description, status, priority, parent_id, sprint_id,
-          due_at, tags, assignee, estimate, context, metadata, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+          due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         id,
         input.title,
@@ -285,6 +297,7 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
         input.due_at ?? null,
         input.tags ? JSON.stringify(input.tags) : null,
         input.assignee ?? null,
+        input.agent_id ?? null,
         input.estimate ?? null,
         input.context ? JSON.stringify(input.context) : null,
         input.metadata ? JSON.stringify(input.metadata) : null,
@@ -333,6 +346,10 @@ export function updateTasksBulk(ids: string[], updates: UpdateTaskInput): Task[]
   if (updates.assignee !== undefined) {
     updateClauses.push("assignee = ?");
     updateValues.push(updates.assignee);
+  }
+  if (updates.agent_id !== undefined) {
+    updateClauses.push("agent_id = ?");
+    updateValues.push(updates.agent_id);
   }
 
   const placeholders = ids.map(() => "?").join(", ");

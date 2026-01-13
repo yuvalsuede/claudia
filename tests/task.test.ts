@@ -274,3 +274,85 @@ describe("State Transitions", () => {
     expect(allowed).not.toContain("completed");
   });
 });
+
+describe("Task Claiming", () => {
+  beforeAll(() => {
+    setupTestDb();
+  });
+
+  afterAll(() => {
+    closeDb();
+    cleanupTestDb();
+  });
+
+  test("claim unclaimed task", () => {
+    const task = taskService.createTask({ title: "Claim test" });
+    const result = taskService.claimTask(task.id, "agent-1");
+
+    expect(result.success).toBe(true);
+    expect(result.task.agent_id).toBe("agent-1");
+    expect(result.message).toBe("Task claimed successfully");
+  });
+
+  test("cannot claim already claimed task", () => {
+    const task = taskService.createTask({ title: "Already claimed" });
+    taskService.claimTask(task.id, "agent-1");
+
+    const result = taskService.claimTask(task.id, "agent-2");
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("already claimed by agent: agent-1");
+  });
+
+  test("claiming own task returns message", () => {
+    const task = taskService.createTask({ title: "Own claim" });
+    taskService.claimTask(task.id, "agent-1");
+
+    const result = taskService.claimTask(task.id, "agent-1");
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Task already claimed by you");
+  });
+
+  test("release claimed task", () => {
+    const task = taskService.createTask({ title: "Release test" });
+    taskService.claimTask(task.id, "agent-1");
+
+    const result = taskService.releaseTask(task.id, "agent-1");
+
+    expect(result.success).toBe(true);
+    expect(result.task.agent_id).toBeUndefined();
+    expect(result.message).toBe("Task released successfully");
+  });
+
+  test("cannot release unclaimed task", () => {
+    const task = taskService.createTask({ title: "Not claimed" });
+
+    const result = taskService.releaseTask(task.id, "agent-1");
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Task is not claimed");
+  });
+
+  test("cannot release task claimed by another agent", () => {
+    const task = taskService.createTask({ title: "Other agent claim" });
+    taskService.claimTask(task.id, "agent-1");
+
+    const result = taskService.releaseTask(task.id, "agent-2");
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("claimed by different agent: agent-1");
+  });
+
+  test("claim non-existent task throws NotFoundError", () => {
+    expect(() => {
+      taskService.claimTask("00000000-0000-0000-0000-000000000000", "agent-1");
+    }).toThrow("Task not found");
+  });
+
+  test("release non-existent task throws NotFoundError", () => {
+    expect(() => {
+      taskService.releaseTask("00000000-0000-0000-0000-000000000000", "agent-1");
+    }).toThrow("Task not found");
+  });
+});

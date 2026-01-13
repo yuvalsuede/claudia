@@ -46,7 +46,7 @@ export function updateTask(id: string, input: UpdateTaskInput): Task {
   // Check optimistic lock
   if (validatedInput.version !== undefined && validatedInput.version !== existing.version) {
     throw new ConflictError(
-      `Version mismatch: expected ${validatedInput.version}, got ${existing.version}`
+      `Version mismatch: expected ${validatedInput.version}, got ${existing.version}. Task was modified by another process. Re-read the task and retry with the current version.`
     );
   }
 
@@ -70,7 +70,7 @@ export function updateTask(id: string, input: UpdateTaskInput): Task {
 
   const updated = taskRepo.updateTask(id, validatedInput);
   if (!updated) {
-    throw new ConflictError("Concurrent modification detected");
+    throw new ConflictError("Concurrent modification detected. Another agent updated this task. Re-read the task and retry.");
   }
 
   return updated;
@@ -124,7 +124,7 @@ export function transitionTask(id: string, toStatus: Task["status"]): TaskTransi
 
   const updated = taskRepo.updateTask(id, { status: toStatus });
   if (!updated) {
-    throw new ConflictError("Failed to update task status");
+    throw new ConflictError("Failed to update task status due to concurrent modification. Re-read the task and retry.");
   }
 
   return {
@@ -168,7 +168,7 @@ export function setTaskContext(id: string, context: Record<string, unknown>): Ta
 
   const updated = taskRepo.updateTask(id, { context });
   if (!updated) {
-    throw new ConflictError("Failed to update context");
+    throw new ConflictError("Failed to update context due to concurrent modification. Re-read the task and retry.");
   }
   return updated;
 }
@@ -190,7 +190,7 @@ export function mergeTaskContext(id: string, context: Record<string, unknown>): 
 
   const updated = taskRepo.updateTask(id, { context: mergedContext });
   if (!updated) {
-    throw new ConflictError("Failed to update context");
+    throw new ConflictError("Failed to update context due to concurrent modification. Re-read the task and retry.");
   }
   return updated;
 }
@@ -381,6 +381,70 @@ export function getBlockedTasks(): Task[] {
 export function getReadyTasks(): Task[] {
   const readyIds = depRepo.getReadyTasks();
   return readyIds.map(id => taskRepo.getTaskById(id)).filter((t): t is Task => t !== null);
+}
+
+// Atomic claim - only succeeds if task is unclaimed
+export function claimTask(taskId: string, agentId: string): { success: boolean; task: Task; message: string } {
+  const task = taskRepo.getTaskById(taskId);
+  if (!task) {
+    throw new NotFoundError("Task", taskId);
+  }
+
+  if (task.agent_id) {
+    return {
+      success: false,
+      task,
+      message: task.agent_id === agentId
+        ? "Task already claimed by you"
+        : `Task already claimed by agent: ${task.agent_id}`,
+    };
+  }
+
+  const updated = taskRepo.updateTask(taskId, { agent_id: agentId });
+  if (!updated) {
+    throw new ConflictError("Failed to claim task - concurrent modification");
+  }
+
+  return {
+    success: true,
+    task: updated,
+    message: "Task claimed successfully",
+  };
+}
+
+// Release a claimed task
+export function releaseTask(taskId: string, agentId: string): { success: boolean; task: Task; message: string } {
+  const task = taskRepo.getTaskById(taskId);
+  if (!task) {
+    throw new NotFoundError("Task", taskId);
+  }
+
+  if (!task.agent_id) {
+    return {
+      success: false,
+      task,
+      message: "Task is not claimed",
+    };
+  }
+
+  if (task.agent_id !== agentId) {
+    return {
+      success: false,
+      task,
+      message: `Task is claimed by different agent: ${task.agent_id}`,
+    };
+  }
+
+  const updated = taskRepo.updateTask(taskId, { agent_id: null });
+  if (!updated) {
+    throw new ConflictError("Failed to release task - concurrent modification");
+  }
+
+  return {
+    success: true,
+    task: updated,
+    message: "Task released successfully",
+  };
 }
 
 function wouldCreateDependencyCycle(taskId: string, newDependsOnId: string): boolean {
