@@ -9,6 +9,7 @@ import { closeDb } from "../db/client.js";
 import * as taskService from "../core/task.js";
 import { formatOutput, type OutputFormat } from "./formatters.js";
 import { EXIT_CODES } from "../utils/exit-codes.js";
+import { startWebServer } from "./web-server.js";
 
 const program = new Command();
 
@@ -54,15 +55,20 @@ program
     }
   });
 
-// Quick done shortcut: claudia ok <id>
+// Quick bugfix shortcut: claudia bug "title"
 program
-  .command("ok")
-  .description("Mark a task as completed")
-  .argument("<id>", "Task ID (full or partial)")
-  .action((id: string) => {
+  .command("bug")
+  .description("Quick add a bugfix task")
+  .argument("<title>", "Task title")
+  .option("-p, --priority <priority>", "Priority (p0, p1, p2, p3)", "p1")
+  .action((title: string, options: { priority?: string }) => {
     try {
-      const result = taskService.transitionTask(id, "completed");
-      console.log(formatOutput(result.task, "json" as OutputFormat));
+      const task = taskService.createTask({
+        title,
+        task_type: "bugfix",
+        priority: options.priority as "p0" | "p1" | "p2" | "p3",
+      });
+      console.log(formatOutput(task, "json" as OutputFormat));
       process.exit(EXIT_CODES.SUCCESS);
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
@@ -70,16 +76,36 @@ program
     }
   });
 
-// Quick work-in-progress shortcut: claudia wip <id>
+// Quick feature shortcut: claudia feat "title"
 program
-  .command("wip")
-  .description("Mark a task as in-progress")
-  .argument("<id>", "Task ID (full or partial)")
-  .action((id: string) => {
+  .command("feat")
+  .description("Quick add a feature task")
+  .argument("<title>", "Task title")
+  .option("-p, --priority <priority>", "Priority (p0, p1, p2, p3)", "p1")
+  .action((title: string, options: { priority?: string }) => {
     try {
-      const result = taskService.transitionTask(id, "in_progress");
-      console.log(formatOutput(result.task, "json" as OutputFormat));
+      const task = taskService.createTask({
+        title,
+        task_type: "feature",
+        priority: options.priority as "p0" | "p1" | "p2" | "p3",
+      });
+      console.log(formatOutput(task, "json" as OutputFormat));
       process.exit(EXIT_CODES.SUCCESS);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(EXIT_CODES.GENERAL_ERROR);
+    }
+  });
+
+// Web dashboard shortcut: claudia @@
+program
+  .command("@@")
+  .description("Open task dashboard in browser")
+  .option("-p, --port <port>", "Port number", "3333")
+  .action(async (options: { port?: string }) => {
+    try {
+      const port = parseInt(options.port || "3333", 10);
+      await startWebServer(port);
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.GENERAL_ERROR);

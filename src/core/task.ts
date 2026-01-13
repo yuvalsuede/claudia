@@ -415,6 +415,7 @@ export function getReadyTasks(): Task[] {
 }
 
 // Atomic claim - only succeeds if task is unclaimed
+// IMPORTANT: Automatically transitions task to in_progress when claimed
 export function claimTask(taskId: string, agentId: string): { success: boolean; task: Task; message: string } {
   const task = taskRepo.getTaskById(taskId);
   if (!task) {
@@ -431,7 +432,11 @@ export function claimTask(taskId: string, agentId: string): { success: boolean; 
     };
   }
 
-  const updated = taskRepo.updateTask(taskId, { agent_id: agentId });
+  // Claim AND transition to in_progress in one operation
+  const updated = taskRepo.updateTask(taskId, {
+    agent_id: agentId,
+    status: "in_progress"
+  });
   if (!updated) {
     throw new ConflictError("Failed to claim task - concurrent modification");
   }
@@ -439,7 +444,7 @@ export function claimTask(taskId: string, agentId: string): { success: boolean; 
   return {
     success: true,
     task: updated,
-    message: "Task claimed successfully",
+    message: "Task claimed and moved to in_progress",
   };
 }
 

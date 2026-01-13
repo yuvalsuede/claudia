@@ -281,7 +281,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "task_transition",
-    description: "Change task status with workflow validation. Returns the updated task and transition details.",
+    description: "Change task status with workflow validation. IMPORTANT: Use this to mark task as 'completed' when you finish working on it. Returns the updated task and transition details.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -450,9 +450,11 @@ export const TOOL_DEFINITIONS = [
     },
   },
   // Claim/release tools
+  // WORKFLOW: Use task_claim when STARTING work (auto-transitions to in_progress)
+  //           Use task_transition to 'completed' when FINISHING work
   {
     name: "task_claim",
-    description: "Atomically claim a task for an agent. Only succeeds if task is unclaimed. Returns success status and task.",
+    description: "CRITICAL: Use this when starting work on a task. Atomically claims the task AND automatically transitions it to 'in_progress'. You MUST call this before working on any task. Returns success status and the updated task.",
     inputSchema: {
       type: "object" as const,
       properties: {

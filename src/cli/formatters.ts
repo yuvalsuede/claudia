@@ -47,10 +47,14 @@ function formatTaskAsText(task: Task): string {
 
   const statusIcon = getStatusIcon(task.status);
   const priorityBadge = task.priority ? ` [${task.priority.toUpperCase()}]` : "";
+  const typeBadge = task.task_type ? ` {${task.task_type}}` : "";
 
-  lines.push(`${statusIcon} ${task.title}${priorityBadge}`);
+  lines.push(`${statusIcon} ${task.title}${priorityBadge}${typeBadge}`);
   lines.push(`  ID: ${task.id}`);
   lines.push(`  Status: ${task.status}`);
+  if (task.task_type) {
+    lines.push(`  Type: ${task.task_type}`);
+  }
 
   if (task.description) {
     const desc =
@@ -132,8 +136,9 @@ function formatTreeNode(node: TaskTreeNode, prefix: string, isLast: boolean): st
   const connector = isLast ? "└── " : "├── ";
   const statusIcon = getStatusIcon(node.status);
   const priorityBadge = node.priority ? ` [${node.priority.toUpperCase()}]` : "";
+  const typeBadge = node.task_type ? ` {${node.task_type}}` : "";
 
-  lines.push(`${prefix}${connector}${statusIcon} ${node.title}${priorityBadge} (${node.id.slice(0, 8)})`);
+  lines.push(`${prefix}${connector}${statusIcon} ${node.title}${priorityBadge}${typeBadge} (${node.id.slice(0, 8)})`);
 
   const childPrefix = prefix + (isLast ? "    " : "│   ");
   node.children.forEach((child, index) => {
