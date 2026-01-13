@@ -1,0 +1,692 @@
+# Requirements Specification: CLI Task Manager for AI Agents
+
+**Version 1.0 | January 2026**
+
+---
+
+## 1. Executive Summary
+
+This document specifies requirements for a command-line task manager designed specifically for AI agents. Unlike traditional task managers built for human users, this tool prioritizes machine-readable interfaces, structured data exchange, and atomic state management.
+
+The primary users are AI agents (Claude, GPT, Gemini) operating via CLI, MCP protocol, or API integration. Human developers may use the tool for debugging and configuration but are secondary users.
+
+---
+
+## 2. Design Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **JSON-First** | All output defaults to structured JSON. Human-readable formats are optional. |
+| **Deterministic** | Same inputs always produce same outputs. No ambiguous states or error messages. |
+| **Atomic** | Operations either fully succeed or fully fail. No partial updates. |
+| **Composable** | Unix philosophy: do one thing well, support piping and chaining. |
+| **Self-Describing** | Schema is versioned and queryable. Agents can introspect capabilities. |
+
+---
+
+## 3. Priority Definitions
+
+| Priority | Definition |
+|----------|------------|
+| **P0** | Critical. Must have for MVP. Blocks release if missing. |
+| **P1** | High. Important for production use. Target for v1.0 release. |
+| **P2** | Medium. Nice to have. Target for v1.1 or later. |
+
+---
+
+## 4. Functional Requirements
+
+### 4.1 Agent I/O
+
+#### REQ-001: Structured Output Formats
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-001` |
+| **Priority** | P0 |
+| **Category** | Agent I/O |
+
+**Description:** All read operations must support machine-parseable output formats. The default output must be JSON. YAML and plain text formats should be available via flags.
+
+**Acceptance Criteria:**
+- `task list --format json` returns valid JSON array
+- `task show <id> --format yaml` returns valid YAML
+- JSON schema is documented and versioned in the repository
+- Empty results return empty array `[]`, not error or null
+- All output conforms to published schema
+
+> **Agent Consideration:** AI agents parse output programmatically. Inconsistent formats cause parsing failures and waste tokens on error recovery. JSON-first design eliminates ambiguity.
+
+---
+
+#### REQ-002: Deterministic Exit Codes
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-002` |
+| **Priority** | P0 |
+| **Category** | Agent I/O |
+
+**Description:** All commands must return well-defined exit codes that map to actionable states. Exit codes must be documented and consistent across all commands.
+
+**Acceptance Criteria:**
+- Exit 0: Success
+- Exit 1: General error (malformed input, missing arguments)
+- Exit 2: Task not found
+- Exit 3: Conflict (concurrent modification detected)
+- Exit 4: Validation error (invalid state transition)
+- Exit 5: Storage error (persistence layer failure)
+- Exit codes are documented in `--help` output
+
+> **Agent Consideration:** Agents use exit codes for control flow. Ambiguous exits force expensive parsing of stderr to determine failure modes.
+
+---
+
+### 4.2 Core Operations
+
+#### REQ-003: Task CRUD Operations
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-003` |
+| **Priority** | P0 |
+| **Category** | Core Operations |
+
+**Description:** Provide complete Create, Read, Update, Delete operations for tasks with atomic guarantees.
+
+**Acceptance Criteria:**
+- `task create --title <title> [--description <desc>] [--priority <p>] [--parent <id>]`
+- `task show <id>` returns full task object
+- `task update <id> --field value` supports all mutable fields
+- `task delete <id>` with confirmation flag `--force`
+- All mutations return the updated task object
+- Failed operations do not partially modify state
+
+> **Agent Consideration:** Atomic operations prevent inconsistent state. Returning the updated object after mutation allows agents to verify changes without additional reads.
+
+---
+
+#### REQ-004: Task List and Query
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-004` |
+| **Priority** | P0 |
+| **Category** | Core Operations |
+
+**Description:** Provide flexible querying capabilities with filtering, sorting, and field selection.
+
+**Acceptance Criteria:**
+- `task list` returns all non-archived tasks
+- `task list --status <status>` filters by status
+- `task list --priority <p1,p2>` filters by multiple priorities
+- `task list --parent <id>` returns direct children
+- `task list --tree` returns hierarchical structure
+- `task list --fields id,title,status` limits output fields
+- `task list --sort priority,created_at` supports multi-field sorting
+- `task list --limit N --offset M` supports pagination
+
+> **Agent Consideration:** Field selection reduces token consumption. Agents working on subtasks need efficient tree traversal.
+
+---
+
+### 4.3 Task Model
+
+#### REQ-005: Hierarchical Task Structure
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-005` |
+| **Priority** | P0 |
+| **Category** | Task Model |
+
+**Description:** Tasks must support parent-child relationships enabling hierarchical decomposition (epic → story → subtask).
+
+**Acceptance Criteria:**
+- Tasks can have zero or one parent
+- Tasks can have zero or more children
+- Maximum nesting depth is configurable (default: 5)
+- Parent deletion behavior is configurable: cascade, orphan, or block
+- `task tree <id>` displays full subtree
+- Circular references are detected and rejected
+
+> **Agent Consideration:** Agents decompose complex tasks into subtasks. Clear hierarchy enables progress tracking and scope management.
+
+---
+
+#### REQ-006: Task Dependencies
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-006` |
+| **Priority** | P1 |
+| **Category** | Task Model |
+
+**Description:** Tasks must support dependency relationships (blocked-by, blocks) separate from parent-child hierarchy.
+
+**Acceptance Criteria:**
+- `task depends <id> --on <other_id>` creates dependency
+- `task depends <id> --remove <other_id>` removes dependency
+- `task list --blocked` shows tasks with unsatisfied dependencies
+- `task list --ready` shows tasks with all dependencies satisfied
+- Dependency cycles are detected and rejected
+- Completing a task surfaces newly unblocked tasks
+
+> **Agent Consideration:** Dependencies enable agents to determine execution order and identify parallelizable work.
+
+---
+
+#### REQ-007: Task Metadata Schema
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-007` |
+| **Priority** | P0 |
+| **Category** | Task Model |
+
+**Description:** Define the complete task data model with all required and optional fields.
+
+**Acceptance Criteria:**
+- Required: `id` (UUID), `title` (string), `status` (enum), `created_at` (ISO8601)
+- Optional: `description`, `priority`, `parent_id`, `due_at`, `tags[]`, `assignee`
+- Status enum: `pending`, `in_progress`, `blocked`, `completed`, `archived`
+- Priority enum: `p0` (critical), `p1` (high), `p2` (medium), `p3` (low)
+- Custom fields via `metadata` JSON object
+- Schema version tracked in task storage
+
+> **Agent Consideration:** Consistent schema enables agents to reason about task properties without parsing natural language descriptions.
+
+---
+
+#### REQ-008: Agent Context Field
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-008` |
+| **Priority** | P0 |
+| **Category** | Task Model |
+
+**Description:** Each task must include a dedicated context field for agents to store working memory, notes, and intermediate state.
+
+**Acceptance Criteria:**
+- `context` field accepts arbitrary JSON up to 64KB
+- `task context <id> --set <json>` overwrites context
+- `task context <id> --merge <json>` deep-merges with existing
+- `task context <id> --get` returns current context
+- Context is preserved across task status transitions
+- Context is included in `task show` output
+
+> **Agent Consideration:** Agents need persistent memory across sessions. The context field stores reasoning chains, partial results, and decision history.
+
+---
+
+### 4.4 State Management
+
+#### REQ-009: Atomic State Transitions
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-009` |
+| **Priority** | P0 |
+| **Category** | State Management |
+
+**Description:** Task status changes must be atomic with validation of allowed transitions.
+
+**Acceptance Criteria:**
+- `task transition <id> --to <status>` performs validated transition
+- Invalid transitions return exit code 4 with explanation
+- Allowed transitions are configurable via workflow definition
+- Default workflow: `pending` → `in_progress` → `completed`; any → `blocked`; any → `archived`
+- Transition history is logged with timestamps
+
+> **Agent Consideration:** Validated transitions prevent invalid states. Agents can trust that task status reflects actual progress.
+
+---
+
+#### REQ-010: Optimistic Locking
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-010` |
+| **Priority** | P1 |
+| **Category** | State Management |
+
+**Description:** Support concurrent access with conflict detection using version-based optimistic locking.
+
+**Acceptance Criteria:**
+- Each task has a `version` field (integer, auto-incremented)
+- Updates can include `--version N` to enable conflict check
+- Conflict returns exit code 3 with current version
+- `task show <id>` always includes current version
+- Version is incremented on any mutation
+
+> **Agent Consideration:** Multi-agent scenarios require conflict detection. Version-based locking enables safe concurrent operations without expensive locks.
+
+---
+
+#### REQ-011: Undo and Rollback
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-011` |
+| **Priority** | P2 |
+| **Category** | State Management |
+
+**Description:** Support reverting recent changes with undo capability.
+
+**Acceptance Criteria:**
+- `task undo` reverts last mutation
+- `task history <id>` shows change log with timestamps
+- `task restore <id> --version N` restores specific version
+- Undo depth configurable (default: 10 operations)
+- Undo is itself logged and undoable
+
+> **Agent Consideration:** Agents may need to backtrack on incorrect decisions. Undo enables experimentation without permanent consequences.
+
+---
+
+### 4.5 Integration
+
+#### REQ-012: MCP Server Mode
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-012` |
+| **Priority** | P0 |
+| **Category** | Integration |
+
+**Description:** Operate as a Model Context Protocol server exposing task operations as tools.
+
+**Acceptance Criteria:**
+- `taskman mcp` starts MCP server on stdio
+- All CRUD operations exposed as MCP tools
+- Tool schemas follow MCP specification
+- Server handles concurrent tool calls
+- Error responses follow MCP error format
+
+> **Agent Consideration:** MCP is the emerging standard for AI agent tool integration. Native MCP support enables drop-in use with Claude, GPT, and other MCP-compatible agents.
+
+---
+
+#### REQ-013: Stdin/Stdout Streaming
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-013` |
+| **Priority** | P1 |
+| **Category** | Integration |
+
+**Description:** Support piping for Unix-style composition with other tools.
+
+**Acceptance Criteria:**
+- `task create` accepts JSON from stdin when `--stdin` flag present
+- `task list` output can be piped to other commands
+- Bulk operations via `task import --stdin < tasks.json`
+- `task export --format ndjson` outputs newline-delimited JSON
+- Streaming mode for large result sets
+
+> **Agent Consideration:** Agents often chain operations. Streaming enables processing large task sets without memory constraints.
+
+---
+
+#### REQ-014: Watch Mode
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-014` |
+| **Priority** | P2 |
+| **Category** | Integration |
+
+**Description:** Provide reactive notification of task changes for event-driven workflows.
+
+**Acceptance Criteria:**
+- `task watch` emits JSON events on any task change
+- `task watch --filter status=completed` filters events
+- Events include: `created`, `updated`, `deleted`, `transition`
+- Event payload includes before/after state
+- Graceful reconnection on storage interruption
+
+> **Agent Consideration:** Watch mode enables reactive agent architectures where agents respond to task state changes rather than polling.
+
+---
+
+### 4.6 Storage
+
+#### REQ-015: Persistent Storage
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-015` |
+| **Priority** | P0 |
+| **Category** | Storage |
+
+**Description:** Tasks must persist across sessions with configurable storage backends.
+
+**Acceptance Criteria:**
+- Default storage: SQLite database in `~/.taskman/tasks.db`
+- Storage path configurable via `--db` flag or `TASKMAN_DB` env var
+- Database schema auto-migrates on version changes
+- `task db init` creates new database
+- `task db backup` creates timestamped backup
+
+> **Agent Consideration:** Persistent storage enables agents to resume work across sessions. SQLite provides zero-configuration reliability.
+
+---
+
+#### REQ-016: File Reference Linking
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-016` |
+| **Priority** | P1 |
+| **Category** | Storage |
+
+**Description:** Tasks can reference external files and code locations.
+
+**Acceptance Criteria:**
+- `task link <id> --file <path>` associates file with task
+- `task link <id> --file <path>:<line>` associates specific line
+- `task links <id>` lists all associated files
+- `task unlink <id> --file <path>` removes association
+- Broken links (deleted files) are flagged but not auto-removed
+
+> **Agent Consideration:** Coding agents need to track which files relate to which tasks. File links enable context-aware task management.
+
+---
+
+### 4.7 Sprints & Bulk Operations
+
+#### REQ-017: Sprint Container
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-017` |
+| **Priority** | P1 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Support grouping tasks into time-boxed sprints or milestones for phased execution.
+
+**Acceptance Criteria:**
+- `sprint create --name <name> [--start <date>] [--end <date>]`
+- `sprint list` returns all sprints with status and task counts
+- `sprint show <id>` returns sprint details with associated tasks
+- `sprint delete <id>` with `--force` flag; tasks are unassigned, not deleted
+- Sprints have status: `planning`, `active`, `completed`, `archived`
+- Only one sprint can be `active` at a time (configurable)
+
+> **Agent Consideration:** Agents working on multi-step projects need to organize work into phases. Sprints provide natural checkpoints for progress assessment and replanning.
+
+---
+
+#### REQ-018: Task-Sprint Assignment
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-018` |
+| **Priority** | P1 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Tasks can be assigned to sprints for grouped execution and tracking.
+
+**Acceptance Criteria:**
+- `task update <id> --sprint <sprint_id>` assigns task to sprint
+- `task update <id> --sprint none` removes sprint assignment
+- `task list --sprint <sprint_id>` filters by sprint
+- `task list --sprint none` shows unassigned (backlog) tasks
+- `sprint tasks <id>` lists all tasks in sprint with status breakdown
+- Tasks can only belong to one sprint at a time
+
+> **Agent Consideration:** Sprint assignment enables agents to focus on a defined scope of work and track velocity across iterations.
+
+---
+
+#### REQ-019: Bulk Task Creation
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-019` |
+| **Priority** | P1 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Create multiple tasks in a single atomic operation.
+
+**Acceptance Criteria:**
+- `task create-many --stdin` accepts JSON array of task definitions
+- `task create-many --file <path>` reads from file
+- All tasks created atomically (all succeed or all fail)
+- Returns array of created task objects with IDs
+- Supports `--sprint <id>` to assign all tasks to sprint
+- Supports `--parent <id>` to create all as children of parent
+- Maximum batch size: 100 tasks per operation
+
+> **Agent Consideration:** Agents decomposing work often generate multiple subtasks at once. Bulk creation reduces round-trips and ensures consistent state.
+
+---
+
+#### REQ-020: Bulk Task Updates
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-020` |
+| **Priority** | P1 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Update multiple tasks in a single operation with filtering.
+
+**Acceptance Criteria:**
+- `task update-many --filter <query> --set <field>=<value>`
+- `task update-many --ids <id1,id2,id3> --set <field>=<value>`
+- Supports multiple `--set` flags for multi-field updates
+- Returns count of updated tasks and their IDs
+- `--dry-run` flag shows what would be updated without applying
+- Atomic: all updates succeed or none apply
+
+> **Agent Consideration:** Batch updates enable efficient state changes like "mark all completed tasks as archived" or "move all P0 tasks to current sprint."
+
+---
+
+#### REQ-021: Sprint Planning View
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-021` |
+| **Priority** | P2 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Provide aggregated views for sprint planning and capacity assessment.
+
+**Acceptance Criteria:**
+- `sprint plan <id>` shows task breakdown by status, priority, and estimate
+- `sprint velocity` shows historical completion rates across past sprints
+- `sprint burndown <id>` shows remaining work over time (if estimates present)
+- `backlog summary` shows unassigned tasks grouped by priority
+- All planning views support `--format json` for programmatic access
+
+> **Agent Consideration:** Planning views help agents assess workload, identify bottlenecks, and make informed decisions about sprint scope.
+
+---
+
+#### REQ-022: Task Templates
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-022` |
+| **Priority** | P2 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Define reusable task templates for common workflows.
+
+**Acceptance Criteria:**
+- `template create --name <name> --definition <json>`
+- `template list` shows available templates
+- `template show <name>` displays template definition
+- `task create --template <name> [--vars key=value]` instantiates template
+- Templates support variable substitution with `{{variable}}` syntax
+- Templates can define task hierarchies (parent with children)
+
+> **Agent Consideration:** Templates enable agents to instantiate standard workflows (e.g., "code review checklist", "bug fix process") without reconstructing task structures each time.
+
+---
+
+#### REQ-023: Bulk Status Transitions
+
+| Field | Value |
+|-------|-------|
+| **ID** | `REQ-023` |
+| **Priority** | P1 |
+| **Category** | Sprints & Bulk Operations |
+
+**Description:** Transition multiple tasks through status changes in one operation.
+
+**Acceptance Criteria:**
+- `task transition-many --filter <query> --to <status>`
+- `task transition-many --sprint <id> --status completed --to archived`
+- Validates all transitions before applying any
+- Returns list of transitioned tasks and any that failed validation
+- `--skip-invalid` flag skips invalid transitions instead of failing entirely
+- Respects workflow rules for each individual transition
+
+> **Agent Consideration:** Bulk transitions enable efficient sprint closeout ("archive all completed tasks") and workflow automation.
+
+---
+
+## 5. MCP Tool Definitions
+
+When operating in MCP server mode, the following tools are exposed to connected agents:
+
+| Tool Name | Description |
+|-----------|-------------|
+| `task_create` | Create a new task with optional parent and metadata |
+| `task_read` | Retrieve a single task by ID with full details |
+| `task_update` | Update one or more fields on an existing task |
+| `task_delete` | Delete a task (with cascade/orphan option for children) |
+| `task_list` | Query tasks with filtering, sorting, and pagination |
+| `task_transition` | Change task status with workflow validation |
+| `task_context_set` | Store agent context/memory on a task |
+| `task_context_get` | Retrieve stored agent context from a task |
+| `task_tree` | Get hierarchical view of task and all descendants |
+| `task_dependencies` | Manage blocked-by relationships between tasks |
+| `sprint_create` | Create a new sprint with optional date range |
+| `sprint_list` | List all sprints with status and task counts |
+| `sprint_show` | Get sprint details with associated tasks |
+| `sprint_activate` | Set a sprint as the active sprint |
+| `sprint_plan` | Get planning view with task breakdown |
+| `task_create_many` | Bulk create multiple tasks atomically |
+| `task_update_many` | Bulk update tasks matching filter criteria |
+| `task_transition_many` | Bulk status transitions with validation |
+| `template_instantiate` | Create tasks from a predefined template |
+
+---
+
+## 6. Task Data Model
+
+```typescript
+interface Task {
+  // Required fields
+  id: string;              // UUID v4
+  title: string;           // 1-500 characters
+  status: TaskStatus;
+  created_at: string;      // ISO8601
+  updated_at: string;      // ISO8601
+  version: number;         // Auto-incremented
+
+  // Optional fields
+  description?: string;    // Up to 10KB
+  priority?: Priority;
+  parent_id?: string;
+  sprint_id?: string;      // Sprint assignment
+  due_at?: string;         // ISO8601
+  tags?: string[];
+  assignee?: string;
+  estimate?: number;       // Story points or hours
+  
+  // Agent-specific
+  context?: object;        // Up to 64KB JSON
+  metadata?: object;       // Custom fields
+  
+  // Relationships (populated on request)
+  children?: Task[];
+  dependencies?: string[]; // Task IDs this is blocked by
+  dependents?: string[];   // Task IDs blocked by this
+  files?: FileLink[];
+}
+
+interface Sprint {
+  id: string;              // UUID v4
+  name: string;            // 1-200 characters
+  status: SprintStatus;
+  start_at?: string;       // ISO8601
+  end_at?: string;         // ISO8601
+  created_at: string;      // ISO8601
+  updated_at: string;      // ISO8601
+  
+  // Computed (populated on request)
+  task_count?: number;
+  completed_count?: number;
+  tasks?: Task[];
+  summary?: SprintSummary;
+}
+
+interface SprintSummary {
+  by_status: Record<TaskStatus, number>;
+  by_priority: Record<Priority, number>;
+  total_estimate?: number;
+  completed_estimate?: number;
+}
+
+interface TaskTemplate {
+  name: string;            // Unique identifier
+  description?: string;
+  variables?: string[];    // e.g., ["feature_name", "assignee"]
+  tasks: TaskDefinition[]; // Template task definitions
+}
+
+interface TaskDefinition {
+  title: string;           // Supports {{variable}} syntax
+  description?: string;
+  priority?: Priority;
+  children?: TaskDefinition[];
+}
+
+type TaskStatus = 
+  | 'pending' 
+  | 'in_progress' 
+  | 'blocked' 
+  | 'completed' 
+  | 'archived';
+
+type SprintStatus =
+  | 'planning'
+  | 'active'
+  | 'completed'
+  | 'archived';
+
+type Priority = 'p0' | 'p1' | 'p2' | 'p3';
+
+interface FileLink {
+  path: string;
+  line?: number;
+  linked_at: string;
+}
+```
+
+---
+
+## 7. Open Questions
+
+- Should the tool support multi-agent coordination with role-based access control?
+- Is cloud sync required, or is local-first sufficient for MVP?
+- Should there be integration hooks for external systems (Linear, Jira, GitHub Issues)?
+- What is the maximum reasonable context size per task (currently proposed: 64KB)?
+- Should completed tasks auto-archive after a configurable period?
+- Should sprints support estimation units (story points vs hours) or be unit-agnostic?
+- Should sprint velocity track by task count, estimates, or both?
+- Should templates be stored in the database or as external files (for version control)?
+
+---
+
+## 8. Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2026-01 | Initial requirements specification |

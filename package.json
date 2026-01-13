@@ -1,0 +1,26 @@
+{
+  "name": "claudia",
+  "version": "0.1.0",
+  "description": "CLI task manager for AI agents",
+  "type": "module",
+  "bin": {
+    "claudia": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "build": "bun build src/cli/index.ts --compile --outfile claudia",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "commander": "^13.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  }
+}

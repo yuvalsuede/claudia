@@ -1,0 +1,468 @@
+import { z } from "zod";
+
+// Tool input schemas
+export const TaskCreateInput = z.object({
+  title: z.string().min(1).max(500).describe("Task title"),
+  description: z.string().max(10240).optional().describe("Task description"),
+  priority: z.enum(["p0", "p1", "p2", "p3"]).optional().describe("Task priority"),
+  parent_id: z.string().uuid().optional().describe("Parent task ID"),
+  status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("Initial status"),
+  tags: z.array(z.string()).optional().describe("Task tags"),
+  assignee: z.string().optional().describe("Task assignee"),
+  due_at: z.string().datetime().optional().describe("Due date (ISO8601)"),
+  context: z.record(z.unknown()).optional().describe("Agent context (JSON, max 64KB)"),
+  metadata: z.record(z.unknown()).optional().describe("Custom metadata"),
+});
+
+export const TaskReadInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+});
+
+export const TaskUpdateInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+  title: z.string().min(1).max(500).optional().describe("New title"),
+  description: z.string().max(10240).optional().describe("New description"),
+  priority: z.enum(["p0", "p1", "p2", "p3"]).nullable().optional().describe("New priority"),
+  parent_id: z.string().uuid().nullable().optional().describe("New parent ID (null to clear)"),
+  status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("New status"),
+  tags: z.array(z.string()).optional().describe("New tags"),
+  assignee: z.string().nullable().optional().describe("New assignee"),
+  due_at: z.string().datetime().nullable().optional().describe("New due date"),
+  version: z.number().int().positive().optional().describe("Expected version for optimistic locking"),
+});
+
+export const TaskDeleteInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+});
+
+export const TaskListInput = z.object({
+  status: z.array(z.enum(["pending", "in_progress", "blocked", "completed", "archived"])).optional().describe("Filter by status"),
+  priority: z.array(z.enum(["p0", "p1", "p2", "p3"])).optional().describe("Filter by priority"),
+  parent_id: z.string().uuid().optional().describe("Filter by parent task ID"),
+  assignee: z.string().optional().describe("Filter by assignee"),
+  limit: z.number().int().positive().max(1000).optional().describe("Maximum results"),
+  offset: z.number().int().nonnegative().optional().describe("Results offset"),
+  sort: z.array(z.string()).optional().describe("Sort fields (prefix with - for desc)"),
+  include_archived: z.boolean().optional().describe("Include archived tasks"),
+});
+
+export const TaskTransitionInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+  to: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).describe("Target status"),
+});
+
+export const TaskContextSetInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+  context: z.record(z.unknown()).describe("Context to set (overwrites existing)"),
+});
+
+export const TaskContextMergeInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+  context: z.record(z.unknown()).describe("Context to merge (deep merge)"),
+});
+
+export const TaskContextGetInput = z.object({
+  id: z.string().uuid().describe("Task ID"),
+});
+
+export const TaskTreeInput = z.object({
+  id: z.string().uuid().optional().describe("Task ID (omit for full tree)"),
+  depth: z.number().int().positive().max(10).optional().describe("Maximum depth"),
+});
+
+// Bulk inputs
+export const BulkCreateInput = z.object({
+  tasks: z.array(z.object({
+    title: z.string().min(1).max(500),
+    description: z.string().max(10240).optional(),
+    priority: z.enum(["p0", "p1", "p2", "p3"]).optional(),
+    parent_id: z.string().uuid().optional(),
+    sprint_id: z.string().uuid().optional(),
+    tags: z.array(z.string()).optional(),
+  })).max(100).describe("Array of task definitions"),
+  sprint_id: z.string().uuid().optional().describe("Assign all tasks to this sprint"),
+  parent_id: z.string().uuid().optional().describe("Create all as children of this task"),
+});
+
+export const BulkUpdateInput = z.object({
+  ids: z.array(z.string().uuid()).describe("Task IDs to update"),
+  updates: z.object({
+    status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional(),
+    priority: z.enum(["p0", "p1", "p2", "p3"]).nullable().optional(),
+    sprint_id: z.string().uuid().nullable().optional(),
+    assignee: z.string().nullable().optional(),
+  }).describe("Fields to update"),
+});
+
+export const BulkTransitionInput = z.object({
+  ids: z.array(z.string().uuid()).describe("Task IDs to transition"),
+  to: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).describe("Target status"),
+  skip_invalid: z.boolean().optional().describe("Skip tasks that fail validation"),
+});
+
+// Dependency inputs
+export const DependencyAddInput = z.object({
+  task_id: z.string().uuid().describe("Task ID"),
+  depends_on_id: z.string().uuid().describe("ID of task this depends on"),
+});
+
+export const DependencyRemoveInput = z.object({
+  task_id: z.string().uuid().describe("Task ID"),
+  depends_on_id: z.string().uuid().describe("ID of dependency to remove"),
+});
+
+export const DependencyGetInput = z.object({
+  task_id: z.string().uuid().describe("Task ID"),
+});
+
+// Sprint inputs
+export const SprintCreateInput = z.object({
+  name: z.string().min(1).max(200).describe("Sprint name"),
+  start_at: z.string().datetime().optional().describe("Start date (ISO8601)"),
+  end_at: z.string().datetime().optional().describe("End date (ISO8601)"),
+});
+
+export const SprintReadInput = z.object({
+  id: z.string().uuid().describe("Sprint ID"),
+});
+
+export const SprintUpdateInput = z.object({
+  id: z.string().uuid().describe("Sprint ID"),
+  name: z.string().min(1).max(200).optional().describe("New name"),
+  status: z.enum(["planning", "active", "completed", "archived"]).optional().describe("New status"),
+  start_at: z.string().datetime().nullable().optional().describe("New start date"),
+  end_at: z.string().datetime().nullable().optional().describe("New end date"),
+});
+
+export const SprintDeleteInput = z.object({
+  id: z.string().uuid().describe("Sprint ID"),
+});
+
+export const SprintActivateInput = z.object({
+  id: z.string().uuid().describe("Sprint ID to activate"),
+});
+
+// Tool definitions for MCP
+export const TOOL_DEFINITIONS = [
+  {
+    name: "task_create",
+    description: "Create a new task with optional parent, priority, and metadata. Returns the created task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string", description: "Task title (required)" },
+        description: { type: "string", description: "Task description" },
+        priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], description: "Priority level" },
+        parent_id: { type: "string", description: "Parent task UUID" },
+        status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Initial status" },
+        tags: { type: "array", items: { type: "string" }, description: "Task tags" },
+        assignee: { type: "string", description: "Task assignee" },
+        due_at: { type: "string", description: "Due date (ISO8601)" },
+        context: { type: "object", description: "Agent context (JSON, max 64KB)" },
+        metadata: { type: "object", description: "Custom metadata" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "task_read",
+    description: "Retrieve a single task by ID with full details including context and metadata.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "task_update",
+    description: "Update one or more fields on an existing task. Returns the updated task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+        title: { type: "string", description: "New title" },
+        description: { type: "string", description: "New description" },
+        priority: { type: ["string", "null"], enum: ["p0", "p1", "p2", "p3", null], description: "New priority (null to clear)" },
+        parent_id: { type: ["string", "null"], description: "New parent UUID (null to clear)" },
+        status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "New status" },
+        tags: { type: "array", items: { type: "string" }, description: "New tags" },
+        assignee: { type: ["string", "null"], description: "New assignee (null to clear)" },
+        due_at: { type: ["string", "null"], description: "New due date (null to clear)" },
+        version: { type: "integer", description: "Expected version for optimistic locking" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "task_delete",
+    description: "Delete a task by ID. Children are orphaned (parent_id set to null).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "task_list",
+    description: "Query tasks with filtering, sorting, and pagination. Returns array of tasks.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] }, description: "Filter by status" },
+        priority: { type: "array", items: { type: "string", enum: ["p0", "p1", "p2", "p3"] }, description: "Filter by priority" },
+        parent_id: { type: "string", description: "Filter by parent task UUID" },
+        assignee: { type: "string", description: "Filter by assignee" },
+        limit: { type: "integer", description: "Maximum results (default: 100)" },
+        offset: { type: "integer", description: "Results offset" },
+        sort: { type: "array", items: { type: "string" }, description: "Sort fields (prefix with - for desc)" },
+        include_archived: { type: "boolean", description: "Include archived tasks" },
+      },
+    },
+  },
+  {
+    name: "task_transition",
+    description: "Change task status with workflow validation. Returns the updated task and transition details.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+        to: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Target status" },
+      },
+      required: ["id", "to"],
+    },
+  },
+  {
+    name: "task_context_set",
+    description: "Store agent context/memory on a task (overwrites existing). Max 64KB.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+        context: { type: "object", description: "Context to set" },
+      },
+      required: ["id", "context"],
+    },
+  },
+  {
+    name: "task_context_merge",
+    description: "Merge context into existing task context (deep merge). Max 64KB total.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+        context: { type: "object", description: "Context to merge" },
+      },
+      required: ["id", "context"],
+    },
+  },
+  {
+    name: "task_context_get",
+    description: "Retrieve stored agent context from a task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "task_tree",
+    description: "Get hierarchical view of task and all descendants.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID (omit for full tree)" },
+        depth: { type: "integer", description: "Maximum depth (default: 5)" },
+      },
+    },
+  },
+  // Bulk tools
+  {
+    name: "task_create_many",
+    description: "Create multiple tasks atomically (max 100). Returns array of created tasks.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tasks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Task title" },
+              description: { type: "string", description: "Task description" },
+              priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], description: "Priority" },
+            },
+            required: ["title"],
+          },
+          description: "Array of task definitions (max 100)",
+        },
+        sprint_id: { type: "string", description: "Assign all tasks to this sprint" },
+        parent_id: { type: "string", description: "Create all as children of this task" },
+      },
+      required: ["tasks"],
+    },
+  },
+  {
+    name: "task_update_many",
+    description: "Update multiple tasks with the same changes.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        ids: { type: "array", items: { type: "string" }, description: "Task UUIDs to update" },
+        updates: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] },
+            priority: { type: ["string", "null"], enum: ["p0", "p1", "p2", "p3", null] },
+            sprint_id: { type: ["string", "null"] },
+            assignee: { type: ["string", "null"] },
+          },
+          description: "Fields to update",
+        },
+      },
+      required: ["ids", "updates"],
+    },
+  },
+  {
+    name: "task_transition_many",
+    description: "Transition multiple tasks to a new status with validation.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        ids: { type: "array", items: { type: "string" }, description: "Task UUIDs to transition" },
+        to: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Target status" },
+        skip_invalid: { type: "boolean", description: "Skip tasks that fail validation instead of failing entirely" },
+      },
+      required: ["ids", "to"],
+    },
+  },
+  // Dependency tools
+  {
+    name: "task_dependency_add",
+    description: "Add a dependency between tasks (task depends on another).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID" },
+        depends_on_id: { type: "string", description: "UUID of task this depends on" },
+      },
+      required: ["task_id", "depends_on_id"],
+    },
+  },
+  {
+    name: "task_dependency_remove",
+    description: "Remove a dependency between tasks.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID" },
+        depends_on_id: { type: "string", description: "UUID of dependency to remove" },
+      },
+      required: ["task_id", "depends_on_id"],
+    },
+  },
+  {
+    name: "task_dependencies",
+    description: "Get dependencies and dependents for a task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID" },
+      },
+      required: ["task_id"],
+    },
+  },
+  {
+    name: "task_blocked",
+    description: "List tasks with unsatisfied dependencies.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "task_ready",
+    description: "List tasks ready to work on (all dependencies satisfied).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  // Sprint tools
+  {
+    name: "sprint_create",
+    description: "Create a new sprint with optional date range.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Sprint name" },
+        start_at: { type: "string", description: "Start date (ISO8601)" },
+        end_at: { type: "string", description: "End date (ISO8601)" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "sprint_list",
+    description: "List all sprints with status and task counts.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        include_archived: { type: "boolean", description: "Include archived sprints" },
+      },
+    },
+  },
+  {
+    name: "sprint_show",
+    description: "Get sprint details with associated tasks.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Sprint UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "sprint_update",
+    description: "Update sprint properties.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Sprint UUID" },
+        name: { type: "string", description: "New name" },
+        status: { type: "string", enum: ["planning", "active", "completed", "archived"], description: "New status" },
+        start_at: { type: ["string", "null"], description: "New start date (null to clear)" },
+        end_at: { type: ["string", "null"], description: "New end date (null to clear)" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "sprint_delete",
+    description: "Delete a sprint (tasks are unassigned, not deleted).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Sprint UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "sprint_activate",
+    description: "Set a sprint as the active sprint.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Sprint UUID" },
+      },
+      required: ["id"],
+    },
+  },
+];

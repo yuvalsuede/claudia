@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+claudia
+dist/
+
+# Database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
