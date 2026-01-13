@@ -8,6 +8,7 @@ interface TaskRow {
   description: string | null;
   status: string;
   priority: string | null;
+  task_type: string | null;
   parent_id: string | null;
   sprint_id: string | null;
   project_id: string | null;
@@ -18,6 +19,7 @@ interface TaskRow {
   estimate: number | null;
   context: string | null;
   metadata: string | null;
+  images: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -30,6 +32,7 @@ function rowToTask(row: TaskRow): Task {
     description: row.description ?? undefined,
     status: row.status as Task["status"],
     priority: row.priority as Task["priority"],
+    task_type: row.task_type as Task["task_type"],
     parent_id: row.parent_id ?? undefined,
     sprint_id: row.sprint_id ?? undefined,
     project_id: row.project_id ?? undefined,
@@ -40,6 +43,7 @@ function rowToTask(row: TaskRow): Task {
     estimate: row.estimate ?? undefined,
     context: row.context ? JSON.parse(row.context) : undefined,
     metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    images: row.images ? JSON.parse(row.images) : undefined,
     version: row.version,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -52,10 +56,10 @@ export function createTask(id: string, input: CreateTaskInput): Task {
 
   const stmt = db.prepare(`
     INSERT INTO tasks (
-      id, title, description, status, priority, parent_id, sprint_id, project_id,
-      due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
+      id, title, description, status, priority, task_type, parent_id, sprint_id, project_id,
+      due_at, tags, assignee, agent_id, estimate, context, metadata, images, version, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
     )
   `);
 
@@ -65,6 +69,7 @@ export function createTask(id: string, input: CreateTaskInput): Task {
     input.description ?? null,
     input.status ?? "pending",
     input.priority ?? null,
+    input.task_type ?? null,
     input.parent_id ?? null,
     input.sprint_id ?? null,
     input.project_id ?? null,
@@ -75,6 +80,7 @@ export function createTask(id: string, input: CreateTaskInput): Task {
     input.estimate ?? null,
     input.context ? JSON.stringify(input.context) : null,
     input.metadata ? JSON.stringify(input.metadata) : null,
+    input.images ? JSON.stringify(input.images) : null,
     now,
     now
   );
@@ -119,6 +125,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
     updates.push("priority = ?");
     values.push(input.priority);
   }
+  if (input.task_type !== undefined) {
+    updates.push("task_type = ?");
+    values.push(input.task_type);
+  }
   if (input.parent_id !== undefined) {
     updates.push("parent_id = ?");
     values.push(input.parent_id);
@@ -159,6 +169,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
     updates.push("metadata = ?");
     values.push(JSON.stringify(input.metadata));
   }
+  if (input.images !== undefined) {
+    updates.push("images = ?");
+    values.push(JSON.stringify(input.images));
+  }
 
   values.push(id);
 
@@ -191,6 +205,11 @@ export function listTasks(query: ListTasksQuery = {}): Task[] {
   if (query.priority && query.priority.length > 0) {
     conditions.push(`priority IN (${query.priority.map(() => "?").join(", ")})`);
     values.push(...query.priority);
+  }
+
+  if (query.task_type && query.task_type.length > 0) {
+    conditions.push(`task_type IN (${query.task_type.map(() => "?").join(", ")})`);
+    values.push(...query.task_type);
   }
 
   if (query.parent_id !== undefined) {
@@ -295,15 +314,16 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
     for (const { id, input } of tasks) {
       db.prepare(`
         INSERT INTO tasks (
-          id, title, description, status, priority, parent_id, sprint_id, project_id,
-          due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+          id, title, description, status, priority, task_type, parent_id, sprint_id, project_id,
+          due_at, tags, assignee, agent_id, estimate, context, metadata, images, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         id,
         input.title,
         input.description ?? null,
         input.status ?? "pending",
         input.priority ?? null,
+        input.task_type ?? null,
         input.parent_id ?? null,
         input.sprint_id ?? null,
         input.project_id ?? null,
@@ -314,6 +334,7 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
         input.estimate ?? null,
         input.context ? JSON.stringify(input.context) : null,
         input.metadata ? JSON.stringify(input.metadata) : null,
+        input.images ? JSON.stringify(input.images) : null,
         now,
         now
       );

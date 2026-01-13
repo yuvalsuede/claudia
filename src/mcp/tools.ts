@@ -1,10 +1,24 @@
 import { z } from "zod";
 
+// Task type enum
+const TaskTypeEnum = z.enum(["feature", "bugfix", "planning", "development", "ui", "refactor", "docs", "test", "chore"]);
+
+// Task image schema
+const TaskImageInput = z.object({
+  id: z.string().describe("Unique image ID"),
+  url: z.string().optional().describe("External URL"),
+  path: z.string().optional().describe("Local file path"),
+  base64: z.string().optional().describe("Base64 encoded image data"),
+  caption: z.string().optional().describe("Image caption"),
+  created_at: z.string().datetime().describe("Creation timestamp"),
+});
+
 // Tool input schemas
 export const TaskCreateInput = z.object({
   title: z.string().min(1).max(500).describe("Task title"),
   description: z.string().max(10240).optional().describe("Task description"),
   priority: z.enum(["p0", "p1", "p2", "p3"]).optional().describe("Task priority"),
+  task_type: TaskTypeEnum.optional().describe("Task type (feature, bugfix, planning, development, ui, refactor, docs, test, chore)"),
   parent_id: z.string().uuid().optional().describe("Parent task ID"),
   status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("Initial status"),
   tags: z.array(z.string()).optional().describe("Task tags"),
@@ -12,6 +26,7 @@ export const TaskCreateInput = z.object({
   due_at: z.string().datetime().optional().describe("Due date (ISO8601)"),
   context: z.record(z.unknown()).optional().describe("Agent context (JSON, max 64KB)"),
   metadata: z.record(z.unknown()).optional().describe("Custom metadata"),
+  images: z.array(TaskImageInput).optional().describe("Attached images"),
 });
 
 export const TaskReadInput = z.object({
@@ -23,11 +38,13 @@ export const TaskUpdateInput = z.object({
   title: z.string().min(1).max(500).optional().describe("New title"),
   description: z.string().max(10240).optional().describe("New description"),
   priority: z.enum(["p0", "p1", "p2", "p3"]).nullable().optional().describe("New priority"),
+  task_type: TaskTypeEnum.nullable().optional().describe("New task type"),
   parent_id: z.string().uuid().nullable().optional().describe("New parent ID (null to clear)"),
   status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("New status"),
   tags: z.array(z.string()).optional().describe("New tags"),
   assignee: z.string().nullable().optional().describe("New assignee"),
   due_at: z.string().datetime().nullable().optional().describe("New due date"),
+  images: z.array(TaskImageInput).optional().describe("Updated images"),
   version: z.number().int().positive().optional().describe("Expected version for optimistic locking"),
 });
 
@@ -38,6 +55,7 @@ export const TaskDeleteInput = z.object({
 export const TaskListInput = z.object({
   status: z.array(z.enum(["pending", "in_progress", "blocked", "completed", "archived"])).optional().describe("Filter by status"),
   priority: z.array(z.enum(["p0", "p1", "p2", "p3"])).optional().describe("Filter by priority"),
+  task_type: z.array(TaskTypeEnum).optional().describe("Filter by task type"),
   parent_id: z.string().uuid().optional().describe("Filter by parent task ID"),
   assignee: z.string().optional().describe("Filter by assignee"),
   limit: z.number().int().positive().max(1000).optional().describe("Maximum results"),
@@ -76,6 +94,7 @@ export const BulkCreateInput = z.object({
     title: z.string().min(1).max(500),
     description: z.string().max(10240).optional(),
     priority: z.enum(["p0", "p1", "p2", "p3"]).optional(),
+    task_type: TaskTypeEnum.optional(),
     parent_id: z.string().uuid().optional(),
     sprint_id: z.string().uuid().optional(),
     tags: z.array(z.string()).optional(),

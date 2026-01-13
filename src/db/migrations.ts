@@ -100,6 +100,15 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sprints_project_id ON sprints(project_id);
     `,
   },
+  {
+    version: 4,
+    name: "add_task_type_and_images",
+    up: `
+      ALTER TABLE tasks ADD COLUMN task_type TEXT;
+      ALTER TABLE tasks ADD COLUMN images TEXT;
+      CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {
