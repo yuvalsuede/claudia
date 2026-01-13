@@ -625,4 +625,76 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  // Display tools - formatted CLI output
+  {
+    name: "display_tasks",
+    description: "Display tasks in a formatted CLI table view. Great for visual overview of task status.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] }, description: "Filter by status" },
+        priority: { type: "array", items: { type: "string", enum: ["p0", "p1", "p2", "p3"] }, description: "Filter by priority" },
+        task_type: { type: "array", items: { type: "string", enum: ["feature", "bugfix", "planning", "development", "ui", "refactor", "docs", "test", "chore"] }, description: "Filter by task type" },
+        limit: { type: "integer", description: "Maximum tasks to show" },
+      },
+    },
+  },
+  {
+    name: "display_kanban",
+    description: "Display tasks in a Kanban board format with columns for each status.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_type: { type: "array", items: { type: "string" }, description: "Filter by task type" },
+      },
+    },
+  },
+  {
+    name: "display_task",
+    description: "Display a single task as a detailed card with all information.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "display_sprints",
+    description: "Display all sprints in a formatted list with progress indicators.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        include_archived: { type: "boolean", description: "Include archived sprints" },
+      },
+    },
+  },
+  {
+    name: "display_sprint",
+    description: "Display a sprint as a detailed card with task breakdown and progress.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Sprint UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "display_progress",
+    description: "Display project progress summary with charts and statistics.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "display_legend",
+    description: "Display the legend for status icons, priority indicators, and task types.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
 ];

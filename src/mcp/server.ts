@@ -9,6 +9,7 @@ import * as taskService from "../core/task.js";
 import * as sprintService from "../core/sprint.js";
 import * as projectService from "../core/project.js";
 import type { Project } from "../schemas/project.js";
+import * as display from "../utils/display.js";
 
 // Helper to get current project context for responses
 function getCurrentProjectContext(): { current_project: Project | null } | Record<string, never> {
@@ -328,6 +329,61 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     case "project_current": {
       const cwd = (args as { cwd?: string }).cwd;
       return projectService.getProjectContext(cwd);
+    }
+
+    // Display tools
+    case "display_tasks": {
+      const input = args as {
+        status?: string[];
+        priority?: string[];
+        task_type?: string[];
+        limit?: number;
+      };
+      const tasks = taskService.listTasks({
+        status: input.status as any,
+        priority: input.priority as any,
+        task_type: input.task_type as any,
+        limit: input.limit,
+      });
+      return { display: display.formatTaskTable(tasks), task_count: tasks.length };
+    }
+
+    case "display_kanban": {
+      const input = args as { task_type?: string[] };
+      const tasks = taskService.listTasks({
+        task_type: input.task_type as any,
+      });
+      return { display: display.formatKanbanBoard(tasks), task_count: tasks.length };
+    }
+
+    case "display_task": {
+      const input = args as { id: string };
+      const task = taskService.getTask(input.id);
+      return { display: display.formatTaskCard(task) };
+    }
+
+    case "display_sprints": {
+      const includeArchived = (args as { include_archived?: boolean }).include_archived ?? false;
+      const sprints = sprintService.listSprintsWithCounts(includeArchived);
+      return { display: display.formatSprintList(sprints) };
+    }
+
+    case "display_sprint": {
+      const input = args as { id: string };
+      const sprint = sprintService.getSprintWithTasks(input.id);
+      return { display: display.formatSprintCard(sprint) };
+    }
+
+    case "display_progress": {
+      const project = projectService.getCurrentProject();
+      const projectName = project?.name || "All Tasks";
+      const tasks = taskService.listTasks({});
+      const sprints = sprintService.listSprintsWithCounts(false);
+      return { display: display.formatProjectSummary(projectName, tasks, sprints) };
+    }
+
+    case "display_legend": {
+      return { display: display.formatLegend() };
     }
 
     default:
