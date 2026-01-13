@@ -5,6 +5,7 @@ export interface Sprint {
   id: string;
   name: string;
   status: "planning" | "active" | "completed" | "archived";
+  project_id?: string;
   start_at?: string;
   end_at?: string;
   created_at: string;
@@ -14,6 +15,7 @@ export interface Sprint {
 export interface CreateSprintInput {
   name: string;
   status?: Sprint["status"];
+  project_id?: string;
   start_at?: string;
   end_at?: string;
 }
@@ -21,6 +23,7 @@ export interface CreateSprintInput {
 export interface UpdateSprintInput {
   name?: string;
   status?: Sprint["status"];
+  project_id?: string | null;
   start_at?: string | null;
   end_at?: string | null;
 }
@@ -29,6 +32,7 @@ interface SprintRow {
   id: string;
   name: string;
   status: string;
+  project_id: string | null;
   start_at: string | null;
   end_at: string | null;
   created_at: string;
@@ -40,6 +44,7 @@ function rowToSprint(row: SprintRow): Sprint {
     id: row.id,
     name: row.name,
     status: row.status as Sprint["status"],
+    project_id: row.project_id ?? undefined,
     start_at: row.start_at ?? undefined,
     end_at: row.end_at ?? undefined,
     created_at: row.created_at,
@@ -52,12 +57,13 @@ export function createSprint(id: string, input: CreateSprintInput): Sprint {
   const now = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO sprints (id, name, status, start_at, end_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sprints (id, name, status, project_id, start_at, end_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.name,
     input.status ?? "planning",
+    input.project_id ?? null,
     input.start_at ?? null,
     input.end_at ?? null,
     now,
@@ -87,6 +93,10 @@ export function updateSprint(id: string, input: UpdateSprintInput): Sprint | nul
   if (input.status !== undefined) {
     updates.push("status = ?");
     values.push(input.status);
+  }
+  if (input.project_id !== undefined) {
+    updates.push("project_id = ?");
+    values.push(input.project_id);
   }
   if (input.start_at !== undefined) {
     updates.push("start_at = ?");

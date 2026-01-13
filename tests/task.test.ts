@@ -1,11 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { setupTestDb, cleanupTestDb } from "./setup";
 import * as taskService from "../src/core/task";
+import * as projectService from "../src/core/project";
 import { closeDb } from "../src/db/client";
 
 describe("Task CRUD", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -130,6 +132,7 @@ describe("Task CRUD", () => {
 describe("Task Hierarchy", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -184,6 +187,7 @@ describe("Task Hierarchy", () => {
 describe("Task Context", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -223,6 +227,7 @@ describe("Task Context", () => {
 describe("State Transitions", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -278,6 +283,7 @@ describe("State Transitions", () => {
 describe("Task Claiming", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {

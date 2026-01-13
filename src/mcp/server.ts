@@ -7,6 +7,14 @@ import {
 
 import * as taskService from "../core/task.js";
 import * as sprintService from "../core/sprint.js";
+import * as projectService from "../core/project.js";
+import type { Project } from "../schemas/project.js";
+
+// Helper to get current project context for responses
+function getCurrentProjectContext(): { current_project: Project | null } | Record<string, never> {
+  const project = projectService.getCurrentProject();
+  return project ? { current_project: project } : {};
+}
 import { ClaudiaError } from "../utils/errors.js";
 import {
   TOOL_DEFINITIONS,
@@ -28,6 +36,11 @@ import {
   DependencyGetInput,
   TaskClaimInput,
   TaskReleaseInput,
+  ProjectCreateInput,
+  ProjectReadInput,
+  ProjectUpdateInput,
+  ProjectDeleteInput,
+  ProjectSelectInput,
   SprintCreateInput,
   SprintReadInput,
   SprintUpdateInput,
@@ -134,7 +147,8 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
 
     case "task_list": {
       const input = TaskListInput.parse(args);
-      return taskService.listTasks(input);
+      const tasks = taskService.listTasks(input);
+      return { tasks, ...getCurrentProjectContext() };
     }
 
     case "task_transition": {
@@ -160,9 +174,9 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     case "task_tree": {
       const input = TaskTreeInput.parse(args);
       if (input.id) {
-        return taskService.getTaskTree(input.id, input.depth);
+        return { tree: taskService.getTaskTree(input.id, input.depth), ...getCurrentProjectContext() };
       }
-      return taskService.getFullTree(input.depth);
+      return { tree: taskService.getFullTree(input.depth), ...getCurrentProjectContext() };
     }
 
     // Bulk tools
@@ -211,11 +225,13 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     }
 
     case "task_blocked": {
-      return taskService.getBlockedTasks();
+      const tasks = taskService.getBlockedTasks();
+      return { tasks, ...getCurrentProjectContext() };
     }
 
     case "task_ready": {
-      return taskService.getReadyTasks();
+      const tasks = taskService.getReadyTasks();
+      return { tasks, ...getCurrentProjectContext() };
     }
 
     // Claim/release tools
@@ -237,7 +253,8 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
 
     case "sprint_list": {
       const includeArchived = (args as { include_archived?: boolean }).include_archived ?? false;
-      return sprintService.listSprintsWithCounts(includeArchived);
+      const sprints = sprintService.listSprintsWithCounts(includeArchived);
+      return { sprints, ...getCurrentProjectContext() };
     }
 
     case "sprint_show": {
@@ -260,6 +277,43 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     case "sprint_activate": {
       const input = SprintActivateInput.parse(args);
       return sprintService.activateSprint(input.id);
+    }
+
+    // Project tools
+    case "project_create": {
+      const input = ProjectCreateInput.parse(args);
+      return projectService.createProject(input);
+    }
+
+    case "project_list": {
+      return projectService.listProjects();
+    }
+
+    case "project_read": {
+      const input = ProjectReadInput.parse(args);
+      return projectService.getProject(input.id);
+    }
+
+    case "project_update": {
+      const input = ProjectUpdateInput.parse(args);
+      const { id, ...updates } = input;
+      return projectService.updateProject(id, updates);
+    }
+
+    case "project_delete": {
+      const input = ProjectDeleteInput.parse(args);
+      projectService.deleteProject(input.id);
+      return { deleted: true, id: input.id };
+    }
+
+    case "project_select": {
+      const input = ProjectSelectInput.parse(args);
+      return projectService.selectProject(input.id);
+    }
+
+    case "project_current": {
+      const cwd = (args as { cwd?: string }).cwd;
+      return projectService.getProjectContext(cwd);
     }
 
     default:

@@ -2,11 +2,13 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { setupTestDb, cleanupTestDb } from "./setup";
 import * as sprintService from "../src/core/sprint";
 import * as taskService from "../src/core/task";
+import * as projectService from "../src/core/project";
 import { closeDb } from "../src/db/client";
 
 describe("Sprint CRUD", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -96,6 +98,7 @@ describe("Sprint CRUD", () => {
 describe("Sprint Activation", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -132,6 +135,7 @@ describe("Sprint Activation", () => {
 describe("Sprint with Tasks", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {

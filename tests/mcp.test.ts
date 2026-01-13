@@ -3,6 +3,7 @@ import { setupTestDb, cleanupTestDb } from "./setup";
 import { closeDb } from "../src/db/client";
 import { TOOL_DEFINITIONS } from "../src/mcp/tools";
 import { handleToolCall } from "../src/mcp/server";
+import * as projectService from "../src/core/project";
 
 describe("MCP Tool Definitions", () => {
   test("all tools have required fields", () => {
@@ -23,6 +24,8 @@ describe("MCP Tool Definitions", () => {
       "task_blocked", "task_ready",
       "sprint_create", "sprint_list", "sprint_show", "sprint_update",
       "sprint_delete", "sprint_activate",
+      "project_create", "project_list", "project_read", "project_update",
+      "project_delete", "project_select", "project_current",
     ];
 
     const toolNames = TOOL_DEFINITIONS.map(t => t.name);
@@ -35,6 +38,7 @@ describe("MCP Tool Definitions", () => {
 describe("MCP Task Tools", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -97,8 +101,8 @@ describe("MCP Task Tools", () => {
     const result = await handleToolCall("task_list", {});
     const data = JSON.parse(result.content[0].text);
 
-    expect(Array.isArray(data)).toBe(true);
-    expect(data.length).toBeGreaterThanOrEqual(2);
+    expect(Array.isArray(data.tasks)).toBe(true);
+    expect(data.tasks.length).toBeGreaterThanOrEqual(2);
   });
 
   test("task_transition changes status", async () => {
@@ -120,6 +124,7 @@ describe("MCP Task Tools", () => {
 describe("MCP Context Tools", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -166,6 +171,7 @@ describe("MCP Context Tools", () => {
 describe("MCP Bulk Tools", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -222,6 +228,7 @@ describe("MCP Bulk Tools", () => {
 describe("MCP Dependency Tools", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -260,13 +267,14 @@ describe("MCP Dependency Tools", () => {
     const result = await handleToolCall("task_blocked", {});
     const data = JSON.parse(result.content[0].text);
 
-    expect(data.find((t: any) => t.id === blockedTask.id)).toBeDefined();
+    expect(data.tasks.find((t: any) => t.id === blockedTask.id)).toBeDefined();
   });
 });
 
 describe("MCP Sprint Tools", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -289,7 +297,7 @@ describe("MCP Sprint Tools", () => {
     const result = await handleToolCall("sprint_list", {});
     const data = JSON.parse(result.content[0].text);
 
-    expect(Array.isArray(data)).toBe(true);
+    expect(Array.isArray(data.sprints)).toBe(true);
   });
 
   test("sprint_activate activates sprint", async () => {
@@ -306,6 +314,7 @@ describe("MCP Sprint Tools", () => {
 describe("MCP Error Handling", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {

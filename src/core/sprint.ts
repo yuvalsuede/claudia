@@ -8,11 +8,19 @@ import {
 } from "../schemas/sprint.js";
 import { NotFoundError } from "../utils/errors.js";
 import type { Task } from "../schemas/task.js";
+import { getCurrentProjectId } from "./project.js";
 
 export function createSprint(input: CreateSprintInput): Sprint {
   const validatedInput = CreateSprintInput.parse(input);
+
+  // Auto-assign current project if none specified
+  const sprintInput = {
+    ...validatedInput,
+    project_id: validatedInput.project_id ?? getCurrentProjectId() ?? undefined,
+  };
+
   const id = randomUUID();
-  return sprintRepo.createSprint(id, validatedInput);
+  return sprintRepo.createSprint(id, sprintInput);
 }
 
 export function getSprint(id: string): Sprint {
@@ -49,7 +57,11 @@ export function deleteSprint(id: string): void {
 }
 
 export function listSprints(includeArchived = false): Sprint[] {
-  return sprintRepo.listSprints(includeArchived);
+  const sprints = sprintRepo.listSprints(includeArchived);
+
+  // Filter by current project if one is selected
+  const projectId = getCurrentProjectId();
+  return projectId ? sprints.filter(s => s.project_id === projectId) : sprints;
 }
 
 export function getActiveSprint(): Sprint | null {
@@ -96,7 +108,7 @@ export interface SprintSummary extends Sprint {
 }
 
 export function listSprintsWithCounts(includeArchived = false): SprintSummary[] {
-  const sprints = sprintRepo.listSprints(includeArchived);
+  const sprints = listSprints(includeArchived);
   return sprints.map((sprint) => ({
     ...sprint,
     counts: sprintRepo.getSprintTaskCounts(sprint.id),

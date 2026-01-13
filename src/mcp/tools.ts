@@ -126,6 +126,32 @@ export const TaskReleaseInput = z.object({
   agent_id: z.string().min(1).describe("Agent identifier releasing the task"),
 });
 
+// Project inputs
+export const ProjectCreateInput = z.object({
+  name: z.string().min(1).max(200).describe("Project name"),
+  path: z.string().optional().describe("Project directory path"),
+  description: z.string().max(2000).optional().describe("Project description"),
+});
+
+export const ProjectReadInput = z.object({
+  id: z.string().uuid().describe("Project ID"),
+});
+
+export const ProjectUpdateInput = z.object({
+  id: z.string().uuid().describe("Project ID"),
+  name: z.string().min(1).max(200).optional().describe("New name"),
+  path: z.string().nullable().optional().describe("New path (null to clear)"),
+  description: z.string().max(2000).nullable().optional().describe("New description (null to clear)"),
+});
+
+export const ProjectDeleteInput = z.object({
+  id: z.string().uuid().describe("Project ID"),
+});
+
+export const ProjectSelectInput = z.object({
+  id: z.string().uuid().describe("Project ID to select"),
+});
+
 // Sprint inputs
 export const SprintCreateInput = z.object({
   name: z.string().min(1).max(200).describe("Sprint name"),
@@ -499,6 +525,85 @@ export const TOOL_DEFINITIONS = [
         id: { type: "string", description: "Sprint UUID" },
       },
       required: ["id"],
+    },
+  },
+  // Project tools
+  {
+    name: "project_create",
+    description: "Create a new project. Projects group tasks and sprints together.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Project name" },
+        path: { type: "string", description: "Project directory path (for auto-detection)" },
+        description: { type: "string", description: "Project description" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "project_list",
+    description: "List all projects.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "project_read",
+    description: "Get project details by ID.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Project UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "project_update",
+    description: "Update project properties.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Project UUID" },
+        name: { type: "string", description: "New name" },
+        path: { type: ["string", "null"], description: "New path (null to clear)" },
+        description: { type: ["string", "null"], description: "New description (null to clear)" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "project_delete",
+    description: "Delete a project. Tasks and sprints in the project are orphaned (project_id set to null).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Project UUID" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "project_select",
+    description: "Select a project as the current working project. Subsequent task/sprint operations will be scoped to this project.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Project UUID to select" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "project_current",
+    description: "Get the currently selected project. If no project is selected, returns null with a list of available projects.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cwd: { type: "string", description: "Current working directory for auto-detection (optional)" },
+      },
     },
   },
 ];

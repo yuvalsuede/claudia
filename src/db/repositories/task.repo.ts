@@ -10,6 +10,7 @@ interface TaskRow {
   priority: string | null;
   parent_id: string | null;
   sprint_id: string | null;
+  project_id: string | null;
   due_at: string | null;
   tags: string | null;
   assignee: string | null;
@@ -31,6 +32,7 @@ function rowToTask(row: TaskRow): Task {
     priority: row.priority as Task["priority"],
     parent_id: row.parent_id ?? undefined,
     sprint_id: row.sprint_id ?? undefined,
+    project_id: row.project_id ?? undefined,
     due_at: row.due_at ?? undefined,
     tags: row.tags ? JSON.parse(row.tags) : undefined,
     assignee: row.assignee ?? undefined,
@@ -50,10 +52,10 @@ export function createTask(id: string, input: CreateTaskInput): Task {
 
   const stmt = db.prepare(`
     INSERT INTO tasks (
-      id, title, description, status, priority, parent_id, sprint_id,
+      id, title, description, status, priority, parent_id, sprint_id, project_id,
       due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
     )
   `);
 
@@ -65,6 +67,7 @@ export function createTask(id: string, input: CreateTaskInput): Task {
     input.priority ?? null,
     input.parent_id ?? null,
     input.sprint_id ?? null,
+    input.project_id ?? null,
     input.due_at ?? null,
     input.tags ? JSON.stringify(input.tags) : null,
     input.assignee ?? null,
@@ -123,6 +126,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
   if (input.sprint_id !== undefined) {
     updates.push("sprint_id = ?");
     values.push(input.sprint_id);
+  }
+  if (input.project_id !== undefined) {
+    updates.push("project_id = ?");
+    values.push(input.project_id);
   }
   if (input.due_at !== undefined) {
     updates.push("due_at = ?");
@@ -194,6 +201,11 @@ export function listTasks(query: ListTasksQuery = {}): Task[] {
   if (query.sprint_id !== undefined) {
     conditions.push("sprint_id = ?");
     values.push(query.sprint_id);
+  }
+
+  if (query.project_id !== undefined) {
+    conditions.push("project_id = ?");
+    values.push(query.project_id);
   }
 
   if (query.assignee !== undefined) {
@@ -283,9 +295,9 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
     for (const { id, input } of tasks) {
       db.prepare(`
         INSERT INTO tasks (
-          id, title, description, status, priority, parent_id, sprint_id,
+          id, title, description, status, priority, parent_id, sprint_id, project_id,
           due_at, tags, assignee, agent_id, estimate, context, metadata, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         id,
         input.title,
@@ -294,6 +306,7 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
         input.priority ?? null,
         input.parent_id ?? null,
         input.sprint_id ?? null,
+        input.project_id ?? null,
         input.due_at ?? null,
         input.tags ? JSON.stringify(input.tags) : null,
         input.assignee ?? null,
@@ -342,6 +355,10 @@ export function updateTasksBulk(ids: string[], updates: UpdateTaskInput): Task[]
   if (updates.sprint_id !== undefined) {
     updateClauses.push("sprint_id = ?");
     updateValues.push(updates.sprint_id);
+  }
+  if (updates.project_id !== undefined) {
+    updateClauses.push("project_id = ?");
+    updateValues.push(updates.project_id);
   }
   if (updates.assignee !== undefined) {
     updateClauses.push("assignee = ?");

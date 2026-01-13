@@ -4,6 +4,7 @@ import { createTaskCommand } from "./commands/task.js";
 import { createDbCommand } from "./commands/db.js";
 import { createMcpCommand } from "./commands/mcp.js";
 import { createSprintCommand } from "./commands/sprint.js";
+import { createProjectCommand } from "./commands/project.js";
 import { closeDb } from "../db/client.js";
 
 const program = new Command();
@@ -15,6 +16,7 @@ program
 
 program.addCommand(createTaskCommand());
 program.addCommand(createSprintCommand());
+program.addCommand(createProjectCommand());
 program.addCommand(createDbCommand());
 program.addCommand(createMcpCommand());
 

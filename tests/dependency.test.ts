@@ -1,11 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { setupTestDb, cleanupTestDb } from "./setup";
 import * as taskService from "../src/core/task";
+import * as projectService from "../src/core/project";
 import { closeDb } from "../src/db/client";
 
 describe("Task Dependencies", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {

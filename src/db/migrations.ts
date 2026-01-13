@@ -78,6 +78,28 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id);
     `,
   },
+  {
+    version: 3,
+    name: "add_projects",
+    up: `
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT UNIQUE,
+        description TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
+
+      ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+
+      ALTER TABLE sprints ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_sprints_project_id ON sprints(project_id);
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

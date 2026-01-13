@@ -1,11 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { setupTestDb, cleanupTestDb } from "./setup";
 import * as taskService from "../src/core/task";
+import * as projectService from "../src/core/project";
 import { closeDb } from "../src/db/client";
 
 describe("Bulk Create", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -46,6 +48,7 @@ describe("Bulk Create", () => {
 describe("Bulk Update", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {
@@ -86,6 +89,7 @@ describe("Bulk Update", () => {
 describe("Bulk Transition", () => {
   beforeAll(() => {
     setupTestDb();
+    projectService.clearCurrentProject();
   });
 
   afterAll(() => {

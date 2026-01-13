@@ -10,6 +10,7 @@ import {
 import { NotFoundError, ValidationError, ConflictError } from "../utils/errors.js";
 import { canTransition, getAllowedTransitions } from "./workflow.js";
 import type { TransitionResult } from "./workflow.js";
+import { getCurrentProjectId } from "./project.js";
 
 export function createTask(input: CreateTaskInput): Task {
   const validatedInput = CreateTaskInput.parse(input);
@@ -22,8 +23,14 @@ export function createTask(input: CreateTaskInput): Task {
     }
   }
 
+  // Auto-assign current project if none specified
+  const taskInput = {
+    ...validatedInput,
+    project_id: validatedInput.project_id ?? getCurrentProjectId() ?? undefined,
+  };
+
   const id = randomUUID();
-  return taskRepo.createTask(id, validatedInput);
+  return taskRepo.createTask(id, taskInput);
 }
 
 export function getTask(id: string): Task {
@@ -90,7 +97,14 @@ export function deleteTask(id: string): void {
 
 export function listTasks(query: ListTasksQuery = {}): Task[] {
   const validatedQuery = ListTasksQuery.parse(query);
-  return taskRepo.listTasks(validatedQuery);
+
+  // Apply current project filter if not explicitly specified
+  const projectId = getCurrentProjectId();
+  const queryWithProject = projectId && validatedQuery.project_id === undefined
+    ? { ...validatedQuery, project_id: projectId }
+    : validatedQuery;
+
+  return taskRepo.listTasks(queryWithProject);
 }
 
 export function getTaskChildren(parentId: string): Task[] {
@@ -229,7 +243,9 @@ export function getTaskTree(taskId: string, maxDepth: number = 5): TaskTreeNode 
 }
 
 export function getRootTasks(): Task[] {
-  return taskRepo.listTasks({ parent_id: undefined }).filter(t => !t.parent_id);
+  const projectId = getCurrentProjectId();
+  const query = projectId ? { project_id: projectId } : {};
+  return taskRepo.listTasks(query).filter(t => !t.parent_id);
 }
 
 export function getFullTree(maxDepth: number = 5): TaskTreeNode[] {
@@ -274,10 +290,17 @@ export function createTasksBulk(inputs: CreateTaskInput[]): Task[] {
     throw new ValidationError("Bulk create limited to 100 tasks");
   }
 
-  const tasks = inputs.map(input => ({
-    id: randomUUID(),
-    input: CreateTaskInput.parse(input),
-  }));
+  const currentProjectId = getCurrentProjectId();
+  const tasks = inputs.map(input => {
+    const validated = CreateTaskInput.parse(input);
+    return {
+      id: randomUUID(),
+      input: {
+        ...validated,
+        project_id: validated.project_id ?? currentProjectId ?? undefined,
+      },
+    };
+  });
 
   return taskRepo.createTasksBulk(tasks);
 }
@@ -375,12 +398,20 @@ export function getTaskDependents(taskId: string): string[] {
 
 export function getBlockedTasks(): Task[] {
   const blockedIds = depRepo.getBlockedTasks();
-  return blockedIds.map(id => taskRepo.getTaskById(id)).filter((t): t is Task => t !== null);
+  const tasks = blockedIds.map(id => taskRepo.getTaskById(id)).filter((t): t is Task => t !== null);
+
+  // Filter by current project if one is selected
+  const projectId = getCurrentProjectId();
+  return projectId ? tasks.filter(t => t.project_id === projectId) : tasks;
 }
 
 export function getReadyTasks(): Task[] {
   const readyIds = depRepo.getReadyTasks();
-  return readyIds.map(id => taskRepo.getTaskById(id)).filter((t): t is Task => t !== null);
+  const tasks = readyIds.map(id => taskRepo.getTaskById(id)).filter((t): t is Task => t !== null);
+
+  // Filter by current project if one is selected
+  const projectId = getCurrentProjectId();
+  return projectId ? tasks.filter(t => t.project_id === projectId) : tasks;
 }
 
 // Atomic claim - only succeeds if task is unclaimed
