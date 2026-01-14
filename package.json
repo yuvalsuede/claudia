@@ -2,16 +2,16 @@
   "name": "claudia-cli",
   "version": "0.1.0",
   "description": "A task management system built for AI agents with MCP server support",
-  "author": "Anthropic",
-  "license": "MIT",
+  "author": "Yuval Suede",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropics/claudia.git"
+    "url": "https://github.com/yuvalsuede/claudia.git"
   },
   "bugs": {
-    "url": "https://github.com/anthropics/claudia/issues"
+    "url": "https://github.com/yuvalsuede/claudia/issues"
   },
-  "homepage": "https://github.com/anthropics/claudia#readme",
+  "homepage": "https://github.com/yuvalsuede/claudia#readme",
   "keywords": [
     "task-manager",
     "ai-agents",
