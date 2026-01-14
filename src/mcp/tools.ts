@@ -145,6 +145,27 @@ export const TaskReleaseInput = z.object({
   agent_id: z.string().min(1).describe("Agent identifier releasing the task"),
 });
 
+// Compound operation inputs (REQ-007)
+export const TaskStartInput = z.object({
+  title: z.string().min(1).max(500).describe("Task title"),
+  description: z.string().max(10240).optional().describe("Task description"),
+  priority: z.enum(["p0", "p1", "p2", "p3"]).optional().describe("Task priority"),
+  task_type: TaskTypeEnum.optional().describe("Task type"),
+  parent_id: z.string().uuid().optional().describe("Parent task ID"),
+  tags: z.array(z.string()).optional().describe("Task tags"),
+  context: z.record(z.unknown()).optional().describe("Initial context"),
+});
+
+export const TaskFinishInput = z.object({
+  id: z.string().uuid().describe("Task ID to finish"),
+  summary: z.string().max(10240).optional().describe("Completion summary"),
+});
+
+// Session context input (REQ-003)
+export const TaskWorkspaceInput = z.object({
+  include_completed: z.boolean().optional().describe("Include recently completed tasks (last 24h)"),
+});
+
 // Project inputs
 export const ProjectCreateInput = z.object({
   name: z.string().min(1).max(200).describe("Project name"),
@@ -200,18 +221,80 @@ export const SprintActivateInput = z.object({
 
 // Tool definitions for MCP
 export const TOOL_DEFINITIONS = [
+  // COMPOUND OPERATIONS - PREFERRED WAY TO WORK WITH TASKS
+  // These tools automatically handle workflow transitions correctly
+  {
+    name: "task_start",
+    description: `RECOMMENDED: Create a new task AND immediately start working on it.
+This is the preferred way to create tasks you'll work on right away.
+Automatically sets status to "in_progress" and claims the task for you.
+
+Use this instead of: task_create + task_claim
+
+Returns the created task (already in_progress).`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string", description: "Task title (required)" },
+        description: { type: "string", description: "Task description" },
+        priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], description: "Priority level" },
+        task_type: { type: "string", enum: ["feature", "bugfix", "planning", "development", "ui", "refactor", "docs", "test", "chore"], description: "Task type" },
+        parent_id: { type: "string", description: "Parent task UUID" },
+        tags: { type: "array", items: { type: "string" }, description: "Task tags" },
+        context: { type: "object", description: "Initial context" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "task_finish",
+    description: `RECOMMENDED: Complete a task you're working on.
+This is the preferred way to mark a task as done.
+Optionally provide a completion summary.
+
+Use this instead of: task_transition(id, "completed")
+
+The task must be in_progress and claimed by you.
+Returns the completed task.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "Task UUID to finish" },
+        summary: { type: "string", description: "Optional completion summary" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "task_workspace",
+    description: `SESSION CONTEXT: Call this when starting a new session to understand your workspace.
+Returns:
+- Your session agent ID
+- Tasks currently in_progress (yours and orphaned)
+- Pending tasks ready to work on
+- Suggested next actions
+- Current project context
+
+This helps you resume work or pick up where another session left off.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        include_completed: { type: "boolean", description: "Include recently completed tasks (last 24h)" },
+      },
+    },
+  },
   // WORKFLOW RULES - READ THIS FIRST
   {
     name: "workflow_info",
-    description: `MANDATORY WORKFLOW - READ BEFORE USING ANY TASK TOOLS:
+    description: `WORKFLOW REFERENCE:
 
-1. STARTING WORK: Before working on any task, you MUST call task_claim first
-   → This moves the task to "in_progress" automatically
-   → Example: task_claim(task_id, "claude-session-123")
+PREFERRED: Use compound operations (task_start, task_finish) - they handle workflow automatically.
 
-2. FINISHING WORK: After completing a task, call task_transition(id, "completed")
+ALTERNATIVE: If using separate operations:
+1. STARTING WORK: Call task_claim first → auto-moves to "in_progress"
+2. FINISHING WORK: Call task_transition(id, "completed")
 
-3. NEVER work on a task without claiming it first!
+Note: Any mutation to a pending task now auto-claims it (implicit workflow).
 
 Returns the current workflow rules.`,
     inputSchema: {

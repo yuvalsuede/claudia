@@ -37,6 +37,9 @@ import {
   DependencyGetInput,
   TaskClaimInput,
   TaskReleaseInput,
+  TaskStartInput,
+  TaskFinishInput,
+  TaskWorkspaceInput,
   ProjectCreateInput,
   ProjectReadInput,
   ProjectUpdateInput,
@@ -48,6 +51,10 @@ import {
   SprintDeleteInput,
   SprintActivateInput,
 } from "./tools.js";
+
+// Session agent ID - auto-generated per MCP connection
+import { randomUUID } from "crypto";
+const SESSION_AGENT_ID = `session-${randomUUID().slice(0, 8)}`;
 
 export async function startMcpServer(): Promise<void> {
   // Auto-detect or create project based on current working directory
@@ -148,14 +155,52 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
 
 async function executeToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
+    // COMPOUND OPERATIONS (REQ-007) - Preferred way to work with tasks
+    case "task_start": {
+      const input = TaskStartInput.parse(args);
+      const task = taskService.startTask(input, SESSION_AGENT_ID);
+      return {
+        task,
+        _info: "Task created and started. It's now in_progress and claimed by you.",
+      };
+    }
+
+    case "task_finish": {
+      const input = TaskFinishInput.parse(args);
+      const task = taskService.finishTask(input.id, SESSION_AGENT_ID, input.summary);
+      return {
+        task,
+        _info: "Task completed successfully.",
+      };
+    }
+
+    case "task_workspace": {
+      const input = TaskWorkspaceInput.parse(args);
+      const workspace = taskService.getWorkspaceContext(SESSION_AGENT_ID, input.include_completed);
+      // Enrich with actual project info if available
+      if (workspace.current_project) {
+        const project = projectService.getCurrentProject();
+        if (project) {
+          workspace.current_project = {
+            id: project.id,
+            name: project.name,
+            path: project.path ?? undefined,
+          };
+        }
+      }
+      return workspace;
+    }
+
     case "workflow_info": {
       return {
         workflow_rules: {
-          rule_1: "BEFORE working on any task: Call task_claim with your agent_id - this auto-moves to in_progress",
-          rule_2: "AFTER completing a task: Call task_transition with status 'completed'",
-          rule_3: "NEVER skip these steps - task status tracking is essential",
+          preferred: "Use task_start and task_finish - they handle workflow automatically",
+          alternative_rule_1: "BEFORE working on any task: Call task_claim with your agent_id - this auto-moves to in_progress",
+          alternative_rule_2: "AFTER completing a task: Call task_transition with status 'completed'",
+          implicit_workflow: "Any mutation to a pending task auto-claims it for you",
         },
-        reminder: "You MUST call task_claim before starting work on any task!",
+        session_agent_id: SESSION_AGENT_ID,
+        reminder: "Prefer task_start/task_finish for automatic workflow handling!",
       };
     }
 
@@ -177,7 +222,8 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
         ...updates,
         priority: updates.priority === null ? undefined : updates.priority,
       };
-      return taskService.updateTask(id, cleanUpdates);
+      // Pass session agent ID for implicit workflow (auto-claim on pending task mutation)
+      return taskService.updateTask(id, cleanUpdates, SESSION_AGENT_ID);
     }
 
     case "task_delete": {

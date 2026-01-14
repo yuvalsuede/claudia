@@ -33,6 +33,56 @@ export function createTask(input: CreateTaskInput): Task {
   return taskRepo.createTask(id, taskInput);
 }
 
+// COMPOUND OPERATION (REQ-007): Create and start working on a task in one operation
+export function startTask(input: CreateTaskInput, agentId: string): Task {
+  const validatedInput = CreateTaskInput.parse(input);
+
+  // Auto-assign current project if none specified
+  const taskInput = {
+    ...validatedInput,
+    project_id: validatedInput.project_id ?? getCurrentProjectId() ?? undefined,
+    status: "in_progress" as const,  // Start immediately in progress
+    agent_id: agentId,               // Claim for this agent
+  };
+
+  const id = randomUUID();
+  return taskRepo.createTask(id, taskInput);
+}
+
+// COMPOUND OPERATION (REQ-007): Complete a task with summary
+export function finishTask(id: string, agentId: string, summary?: string): Task {
+  const task = taskRepo.getTaskById(id);
+  if (!task) {
+    throw new NotFoundError("Task", id);
+  }
+
+  // Verify agent owns this task
+  if (task.agent_id && task.agent_id !== agentId) {
+    throw new ConflictError(`Task is claimed by another agent: ${task.agent_id}`);
+  }
+
+  // Task must be in_progress to finish
+  if (task.status !== "in_progress") {
+    throw new ValidationError(`Cannot finish task with status '${task.status}'. Task must be in_progress.`);
+  }
+
+  // TODO: Add acceptance criteria verification here (REQ-010)
+  // For now, just transition to completed
+
+  const updates: Record<string, unknown> = { status: "completed" };
+  if (summary) {
+    // Store summary in context
+    const existingContext = task.context ?? {};
+    updates.context = { ...existingContext, completion_summary: summary };
+  }
+
+  const updated = taskRepo.updateTask(id, updates);
+  if (!updated) {
+    throw new ConflictError("Failed to complete task");
+  }
+  return updated;
+}
+
 export function getTask(id: string): Task {
   const task = taskRepo.getTaskById(id);
   if (!task) {
@@ -41,7 +91,7 @@ export function getTask(id: string): Task {
   return task;
 }
 
-export function updateTask(id: string, input: UpdateTaskInput): Task {
+export function updateTask(id: string, input: UpdateTaskInput, agentId?: string): Task {
   const validatedInput = UpdateTaskInput.parse(input);
 
   // Check if task exists
@@ -55,6 +105,21 @@ export function updateTask(id: string, input: UpdateTaskInput): Task {
     throw new ConflictError(
       `Version mismatch: expected ${validatedInput.version}, got ${existing.version}. Task was modified by another process. Re-read the task and retry with the current version.`
     );
+  }
+
+  // IMPLICIT WORKFLOW (REQ-005): Auto-claim pending tasks on mutation
+  // If task is pending and we're mutating it, auto-claim and transition to in_progress
+  let implicitUpdates: Partial<UpdateTaskInput> = {};
+  if (existing.status === "pending" && agentId) {
+    // Check if already claimed by another agent
+    if (existing.agent_id && existing.agent_id !== agentId) {
+      throw new ConflictError(`Task is claimed by another agent: ${existing.agent_id}`);
+    }
+    // Auto-claim and transition
+    implicitUpdates = {
+      status: "in_progress",
+      agent_id: agentId,
+    };
   }
 
   // Validate parent if being changed
@@ -75,7 +140,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task {
     }
   }
 
-  const updated = taskRepo.updateTask(id, validatedInput);
+  // Merge implicit updates with explicit updates (explicit wins)
+  const finalUpdates = { ...implicitUpdates, ...validatedInput };
+
+  const updated = taskRepo.updateTask(id, finalUpdates);
   if (!updated) {
     throw new ConflictError("Concurrent modification detected. Another agent updated this task. Re-read the task and retry.");
   }
@@ -480,6 +548,77 @@ export function releaseTask(taskId: string, agentId: string): { success: boolean
     success: true,
     task: updated,
     message: "Task released successfully",
+  };
+}
+
+// SESSION CONTEXT (REQ-003): Get workspace context for a session
+export interface WorkspaceContext {
+  session_agent_id: string;
+  current_project: { id: string; name: string; path?: string } | null;
+  my_tasks: Task[];           // Tasks claimed by this session
+  orphaned_tasks: Task[];     // in_progress tasks with no/different agent
+  pending_tasks: Task[];      // Ready to work on
+  recently_completed?: Task[]; // Completed in last 24h
+  suggested_actions: string[];
+}
+
+export function getWorkspaceContext(sessionAgentId: string, includeCompleted?: boolean): WorkspaceContext {
+  // Get current project
+  const currentProjectId = getCurrentProjectId();
+  let currentProject: WorkspaceContext["current_project"] = null;
+
+  if (currentProjectId) {
+    const projectTasks = listTasks({ limit: 1 });
+    // We need project info - let's get it from the first task or query
+    currentProject = { id: currentProjectId, name: currentProjectId }; // TODO: Get actual project name
+  }
+
+  // Get all in_progress tasks
+  const inProgressTasks = listTasks({ status: ["in_progress"] });
+
+  // Split into my tasks vs orphaned
+  const myTasks = inProgressTasks.filter(t => t.agent_id === sessionAgentId);
+  const orphanedTasks = inProgressTasks.filter(t => !t.agent_id || (t.agent_id !== sessionAgentId && t.agent_id.startsWith("session-")));
+
+  // Get pending tasks (ready to work on)
+  const pendingTasks = listTasks({ status: ["pending"], limit: 10 });
+
+  // Get recently completed if requested
+  let recentlyCompleted: Task[] | undefined;
+  if (includeCompleted) {
+    const allCompleted = listTasks({ status: ["completed"], limit: 20 });
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    recentlyCompleted = allCompleted.filter(t => t.updated_at > oneDayAgo);
+  }
+
+  // Generate suggested actions
+  const suggestedActions: string[] = [];
+
+  if (orphanedTasks.length > 0) {
+    suggestedActions.push(`Resume ${orphanedTasks.length} orphaned in_progress task(s) - they may need attention`);
+  }
+
+  if (myTasks.length > 0) {
+    suggestedActions.push(`Continue working on ${myTasks.length} task(s) you already claimed`);
+  } else if (pendingTasks.length > 0) {
+    const highPriority = pendingTasks.filter(t => t.priority === "p0" || t.priority === "p1");
+    if (highPriority.length > 0) {
+      suggestedActions.push(`Start with high-priority pending tasks (${highPriority.length} P0/P1 tasks available)`);
+    } else {
+      suggestedActions.push(`Pick a pending task to work on (${pendingTasks.length} available)`);
+    }
+  } else {
+    suggestedActions.push("No pending tasks - create new tasks or check other projects");
+  }
+
+  return {
+    session_agent_id: sessionAgentId,
+    current_project: currentProject,
+    my_tasks: myTasks,
+    orphaned_tasks: orphanedTasks,
+    pending_tasks: pendingTasks,
+    recently_completed: recentlyCompleted,
+    suggested_actions: suggestedActions,
   };
 }
 
