@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.yuvalsuede/claudia",
+  "description": "AI-native task management system. Track progress, coordinate multi-agent work, manage hierarchical tasks with dependencies, sprints, acceptance criteria, and a web dashboard.",
+  "repository": {
+    "url": "https://github.com/yuvalsuede/claudia",
+    "source": "github"
+  },
+  "version": "0.1.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "claudia-cli",
+      "version": "0.1.3",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "bunx"
+    }
+  ]
+}

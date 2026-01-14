@@ -1,6 +1,7 @@
 {
   "name": "claudia-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "mcpName": "io.github.yuvalsuede/claudia",
   "description": "A task management system built for AI agents with MCP server support",
   "author": "Yuval Suede",
   "license": "GPL-3.0",
