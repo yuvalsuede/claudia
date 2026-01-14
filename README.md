@@ -6,6 +6,8 @@
 
 **A task management system built for AI agents.**
 
+Official website: https://claudiacli.com/
+
 Claudia provides structured task tracking with a Model Context Protocol (MCP) server, enabling AI assistants like Claude to manage their own work through hierarchical tasks, dependencies, sprints, and acceptance criteria verification.
 
 ![Claudia Dashboard Demo](assets/claudia-demo.gif)
@@ -28,7 +30,7 @@ Claudia provides all of this through both a CLI and MCP server interface.
 curl -fsSL https://bun.sh/install | bash
 
 # Clone and build
-git clone https://github.com/anthropics/claudia.git
+git clone https://github.com/yuvalsuede/claudia.git
 cd claudia
 bun install
 bun run build
@@ -85,7 +87,7 @@ Then open http://localhost:3333 in your browser to explore the kanban board and 
 ### From Source
 
 ```bash
-git clone https://github.com/anthropics/claudia.git
+git clone https://github.com/yuvalsuede/claudia.git
 cd claudia
 bun install
 ```
