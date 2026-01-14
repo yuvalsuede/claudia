@@ -5,10 +5,12 @@ A CLI task manager designed for AI agents, with full MCP (Model Context Protocol
 ## Features
 
 - **Task Management**: Create, read, update, delete tasks with hierarchical parent-child relationships
-- **State Machine**: Validated status transitions (pending → in_progress → completed)
+- **State Machine**: Validated status transitions (pending → in_progress → verification → completed)
 - **Dependencies**: Track task dependencies with automatic cycle detection
 - **Sprints**: Group tasks into sprints for organized work periods
 - **Projects**: Multi-project support with auto-detection from working directory
+- **Web Dashboard**: Visual kanban board with Tasks/Sprints views and project filtering
+- **Acceptance Criteria**: Define and verify acceptance criteria for tasks
 - **Context Storage**: Store up to 64KB of JSON context per task for agent memory
 - **MCP Server**: Drop-in MCP server for Claude Code and other MCP-compatible clients
 - **Bulk Operations**: Atomic batch create, update, and transition operations
@@ -167,6 +169,27 @@ claudia db path
 claudia db backup
 ```
 
+### Web Dashboard
+
+Launch a visual dashboard in your browser:
+
+```bash
+# Open dashboard (shortcut)
+claudia @@
+
+# Or with custom port
+claudia @@ --port 8080
+```
+
+The dashboard provides:
+- **Tasks View**: Kanban board with Pending, In Progress, Blocked, and Completed columns
+- **Sprints View**: Sprint cards grouped by Planning, Active, and Completed status
+- **Project Filter**: Dropdown to filter tasks/sprints by project
+- **Clear Completed**: Button to archive all completed tasks
+- **Auto-refresh**: Dashboard updates every 5 seconds
+
+Toggle between Tasks and Sprints views using the header buttons. The project filter applies to both views.
+
 ### MCP Server
 
 Start the MCP server for use with Claude Code or other MCP clients:
@@ -233,6 +256,25 @@ All tasks and sprints are automatically assigned to the current project. No manu
 
 #### Available MCP Tools
 
+**Compound Operations (Recommended)**
+
+| Tool | Description |
+|------|-------------|
+| `task_start` | Create and start a task in one operation (auto-claims) |
+| `task_finish` | Complete a task with optional summary |
+| `task_workspace` | Get current agent's workspace context |
+| `task_handoff` | Transfer task to another agent |
+| `task_abandon` | Release task back to pending with reason |
+
+**Verification**
+
+| Tool | Description |
+|------|-------------|
+| `task_verify` | Mark an acceptance criterion as verified |
+| `task_verification_status` | Get verification progress for a task |
+
+**Project Management**
+
 | Tool | Description |
 |------|-------------|
 | `project_create` | Create a new project |
@@ -242,6 +284,11 @@ All tasks and sprints are automatically assigned to the current project. No manu
 | `project_delete` | Delete a project |
 | `project_select` | Select working project |
 | `project_current` | Get current project context |
+
+**Task CRUD**
+
+| Tool | Description |
+|------|-------------|
 | `task_create` | Create a new task |
 | `task_read` | Get task by ID |
 | `task_update` | Update task fields |
@@ -252,9 +299,19 @@ All tasks and sprints are automatically assigned to the current project. No manu
 | `task_context_get` | Get task context |
 | `task_context_merge` | Merge into task context |
 | `task_tree` | Get hierarchical task view |
+
+**Bulk Operations**
+
+| Tool | Description |
+|------|-------------|
 | `task_create_many` | Bulk create tasks |
 | `task_update_many` | Bulk update tasks |
 | `task_transition_many` | Bulk transition tasks |
+
+**Dependencies & Coordination**
+
+| Tool | Description |
+|------|-------------|
 | `task_dependency_add` | Add task dependency |
 | `task_dependency_remove` | Remove task dependency |
 | `task_dependencies` | Get task dependencies |
@@ -262,6 +319,11 @@ All tasks and sprints are automatically assigned to the current project. No manu
 | `task_ready` | List ready tasks |
 | `task_claim` | Atomically claim a task for an agent |
 | `task_release` | Release a claimed task |
+
+**Sprints**
+
+| Tool | Description |
+|------|-------------|
 | `sprint_create` | Create a sprint |
 | `sprint_list` | List sprints |
 | `sprint_show` | Get sprint details |
@@ -287,23 +349,26 @@ claudia task list --format text
 ## Task Status Workflow
 
 ```
-┌─────────┐     ┌─────────────┐     ┌───────────┐
-│ pending │────▶│ in_progress │────▶│ completed │
-└─────────┘     └─────────────┘     └───────────┘
-     │                │                    │
-     │                │                    │
-     ▼                ▼                    ▼
-┌─────────┐     ┌──────────┐
-│ blocked │     │ archived │ (terminal)
-└─────────┘     └──────────┘
+┌─────────┐     ┌─────────────┐     ┌──────────────┐     ┌───────────┐
+│ pending │────▶│ in_progress │────▶│ verification │────▶│ completed │
+└─────────┘     └─────────────┘     └──────────────┘     └───────────┘
+     │                │                    │                    │
+     │                │                    │                    │
+     ▼                ▼                    ▼                    ▼
+┌─────────┐                         ┌──────────┐
+│ blocked │                         │ archived │ (terminal)
+└─────────┘                         └──────────┘
 ```
 
 Valid transitions:
 - `pending` → `in_progress`, `blocked`, `archived`
-- `in_progress` → `pending`, `completed`, `blocked`, `archived`
+- `in_progress` → `pending`, `verification`, `completed`, `blocked`, `archived`
+- `verification` → `in_progress`, `completed`, `blocked`, `archived`
 - `blocked` → `pending`, `in_progress`, `archived`
 - `completed` → `in_progress`, `archived`
 - `archived` → (none - terminal state)
+
+Tasks can skip the `verification` status if no acceptance criteria are defined.
 
 ## Configuration
 
