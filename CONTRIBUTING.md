@@ -166,4 +166,4 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-By contributing to Claudia, you agree that your contributions will be licensed under the MIT License.
+By contributing to Claudia, you agree that your contributions will be licensed under the GNU General Public License v3.0 (GPLv3).
