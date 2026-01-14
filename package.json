@@ -31,7 +31,8 @@
     "build": "bun build src/cli/index.ts --compile --outfile claudia",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "seed:demo": "bun run scripts/seed-demo.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

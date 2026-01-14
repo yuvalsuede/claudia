@@ -37,6 +37,20 @@ bun run build
 ./claudia task list
 ```
 
+### Try the Demo
+
+See Claudia in action with sample data:
+
+```bash
+# Seed demo project with sample tasks and sprints
+bun run seed:demo
+
+# Open the web dashboard
+./claudia @@ --port 3333
+```
+
+Then open http://localhost:3333 in your browser to explore the kanban board and sprint views.
+
 ## Features
 
 | Feature | Description |
