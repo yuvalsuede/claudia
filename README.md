@@ -51,6 +51,14 @@ bun run seed:demo
 
 Then open http://localhost:3333 in your browser to explore the kanban board and sprint views.
 
+## Screenshots
+
+### Task Board
+![Claudia Tasks View](assets/claudia-tasks.png)
+
+### Sprint Management
+![Claudia Sprints View](assets/claudia-sprints.png)
+
 ## Features
 
 | Feature | Description |
