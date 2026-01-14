@@ -56,12 +56,13 @@ export function deleteSprint(id: string): void {
   sprintRepo.deleteSprint(id);
 }
 
-export function listSprints(includeArchived = false): Sprint[] {
+export function listSprints(includeArchived = false, projectId?: string | null): Sprint[] {
   const sprints = sprintRepo.listSprints(includeArchived);
 
-  // Filter by current project if one is selected
-  const projectId = getCurrentProjectId();
-  return projectId ? sprints.filter(s => s.project_id === projectId) : sprints;
+  // Use explicit projectId if provided, otherwise fall back to current project
+  // Pass null to get all sprints regardless of project
+  const filterProjectId = projectId === null ? undefined : (projectId ?? getCurrentProjectId());
+  return filterProjectId ? sprints.filter(s => s.project_id === filterProjectId) : sprints;
 }
 
 export function getActiveSprint(): Sprint | null {
@@ -107,8 +108,8 @@ export interface SprintSummary extends Sprint {
   counts: Record<string, number>;
 }
 
-export function listSprintsWithCounts(includeArchived = false): SprintSummary[] {
-  const sprints = listSprints(includeArchived);
+export function listSprintsWithCounts(includeArchived = false, projectId?: string | null): SprintSummary[] {
+  const sprints = listSprints(includeArchived, projectId);
   return sprints.map((sprint) => ({
     ...sprint,
     counts: sprintRepo.getSprintTaskCounts(sprint.id),

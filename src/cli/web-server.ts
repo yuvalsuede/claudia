@@ -541,7 +541,8 @@ export async function startWebServer(port: number = 3333): Promise<void> {
           query.project_id = projectId;
         }
         const freshTasks = taskService.listTasks(query);
-        const sprints = view === "sprints" ? sprintService.listSprintsWithCounts(false) : [];
+        // Pass projectId to filter sprints, or null for "All Projects"
+        const sprints = view === "sprints" ? sprintService.listSprintsWithCounts(false, projectId ?? null) : [];
         return new Response(generateHtml(freshTasks, projects, projectId, view, sprints), {
           headers: { "Content-Type": "text/html" },
         });
