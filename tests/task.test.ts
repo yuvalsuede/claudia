@@ -297,7 +297,7 @@ describe("Task Claiming", () => {
 
     expect(result.success).toBe(true);
     expect(result.task.agent_id).toBe("agent-1");
-    expect(result.message).toBe("Task claimed successfully");
+    expect(result.message).toBe("Task claimed and moved to in_progress");
   });
 
   test("cannot claim already claimed task", () => {

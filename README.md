@@ -8,6 +8,8 @@
 
 Claudia provides structured task tracking with a Model Context Protocol (MCP) server, enabling AI assistants like Claude to manage their own work through hierarchical tasks, dependencies, sprints, and acceptance criteria verification.
 
+![Claudia Dashboard Demo](assets/claudia-demo.gif)
+
 ## Why Claudia?
 
 AI agents need a way to:
