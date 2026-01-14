@@ -1,7 +1,9 @@
 import * as taskService from "../core/task.js";
 import * as projectService from "../core/project.js";
+import * as sprintService from "../core/sprint.js";
 import type { Task } from "../schemas/task.js";
 import type { Project } from "../schemas/project.js";
+import type { Sprint } from "../schemas/sprint.js";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "#fbbf24",
@@ -21,6 +23,13 @@ const TYPE_COLORS: Record<string, string> = {
   docs: "#84cc16",
   test: "#14b8a6",
   chore: "#6b7280",
+};
+
+const SPRINT_STATUS_COLORS: Record<string, string> = {
+  planning: "#a855f7",
+  active: "#3b82f6",
+  completed: "#22c55e",
+  archived: "#6b7280",
 };
 
 function escapeHtml(str: string): string {
@@ -52,11 +61,53 @@ function renderTaskCard(task: Task): string {
   `;
 }
 
-function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: string): string {
+interface SprintWithCounts extends Sprint {
+  task_count?: number;
+  completed_count?: number;
+}
+
+function renderSprintCard(sprint: SprintWithCounts): string {
+  const statusColor = SPRINT_STATUS_COLORS[sprint.status] || "#6b7280";
+  const total = sprint.task_count || 0;
+  const completed = sprint.completed_count || 0;
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return `
+    <div class="sprint-card" data-status="${sprint.status}">
+      <div class="sprint-header">
+        <span class="status-badge" style="background: ${statusColor}">${sprint.status}</span>
+      </div>
+      <h3 class="sprint-title">${escapeHtml(sprint.name)}</h3>
+      <div class="sprint-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%; background: ${statusColor}"></div>
+        </div>
+        <span class="progress-text">${completed}/${total} tasks (${progress}%)</span>
+      </div>
+      <div class="sprint-meta">
+        <span class="sprint-id">${sprint.id.slice(0, 8)}</span>
+        ${sprint.start_at ? `<span class="sprint-dates">${sprint.start_at.slice(0, 10)}${sprint.end_at ? ` - ${sprint.end_at.slice(0, 10)}` : ''}</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function generateHtml(
+  tasks: Task[],
+  projects: Project[],
+  selectedProjectId?: string,
+  view: "tasks" | "sprints" = "tasks",
+  sprints: SprintWithCounts[] = []
+): string {
   const pending = tasks.filter(t => t.status === "pending");
   const inProgress = tasks.filter(t => t.status === "in_progress");
   const blocked = tasks.filter(t => t.status === "blocked");
   const completed = tasks.filter(t => t.status === "completed");
+
+  // Sprint groupings
+  const planningSprints = sprints.filter(s => s.status === "planning");
+  const activeSprints = sprints.filter(s => s.status === "active");
+  const completedSprints = sprints.filter(s => s.status === "completed");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -231,6 +282,79 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .view-toggle {
+      display: flex;
+      background: #171717;
+      border-radius: 8px;
+      border: 1px solid #262626;
+      overflow: hidden;
+    }
+    .view-toggle a {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      color: #a3a3a3;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .view-toggle a:hover {
+      background: #262626;
+      color: #fafafa;
+    }
+    .view-toggle a.active {
+      background: #ff3399;
+      color: #000;
+      font-weight: 600;
+    }
+    .sprint-card {
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      transition: all 0.2s;
+    }
+    .sprint-card:hover {
+      border-color: #ff3399;
+      transform: translateY(-2px);
+    }
+    .sprint-header {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .sprint-title {
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+    .sprint-progress {
+      margin-bottom: 0.5rem;
+    }
+    .progress-bar {
+      height: 6px;
+      background: #262626;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 0.25rem;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      font-size: 0.625rem;
+      color: #a3a3a3;
+    }
+    .sprint-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.625rem;
+      color: #737373;
+    }
+    .sprint-id { font-family: monospace; }
+    .sprint-dates { color: #a3a3a3; }
     @media (max-width: 1024px) {
       .board { grid-template-columns: repeat(2, 1fr); }
     }
@@ -254,12 +378,17 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
     </svg>
     <h1>Claudia</h1>
     <div class="header-controls">
-      <select class="project-select" onchange="window.location.href='/?project=' + this.value">
+      <div class="view-toggle">
+        <a href="/?view=tasks${selectedProjectId ? '&project=' + selectedProjectId : ''}" class="${view === 'tasks' ? 'active' : ''}">Tasks</a>
+        <a href="/?view=sprints${selectedProjectId ? '&project=' + selectedProjectId : ''}" class="${view === 'sprints' ? 'active' : ''}">Sprints</a>
+      </div>
+      <select class="project-select" onchange="window.location.href='/?view=${view}&project=' + this.value">
         <option value="">All Projects</option>
         ${projects.map(p => `<option value="${p.id}" ${selectedProjectId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
       </select>
-      ${completed.length > 0 ? `<button class="clear-btn" onclick="clearCompleted()">Clear ${completed.length} Completed</button>` : ''}
+      ${view === 'tasks' && completed.length > 0 ? `<button class="clear-btn" onclick="clearCompleted()">Clear ${completed.length} Completed</button>` : ''}
     </div>
+    ${view === 'tasks' ? `
     <div class="stats">
       <div class="stat">
         <span class="stat-dot" style="background: #fbbf24"></span>
@@ -278,8 +407,25 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
         <span>${completed.length} Completed</span>
       </div>
     </div>
+    ` : `
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-dot" style="background: #a855f7"></span>
+        <span>${planningSprints.length} Planning</span>
+      </div>
+      <div class="stat">
+        <span class="stat-dot" style="background: #3b82f6"></span>
+        <span>${activeSprints.length} Active</span>
+      </div>
+      <div class="stat">
+        <span class="stat-dot" style="background: #22c55e"></span>
+        <span>${completedSprints.length} Completed</span>
+      </div>
+    </div>
+    `}
   </div>
 
+  ${view === 'tasks' ? `
   <div class="board">
     <div class="column">
       <div class="column-header">
@@ -317,6 +463,36 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
       ${completed.length ? completed.map(renderTaskCard).join("") : '<div class="empty-state">No completed tasks</div>'}
     </div>
   </div>
+  ` : `
+  <div class="board" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="column">
+      <div class="column-header">
+        <span class="stat-dot" style="background: #a855f7"></span>
+        <span class="column-title">Planning</span>
+        <span class="column-count">${planningSprints.length}</span>
+      </div>
+      ${planningSprints.length ? planningSprints.map(renderSprintCard).join("") : '<div class="empty-state">No sprints in planning</div>'}
+    </div>
+
+    <div class="column">
+      <div class="column-header">
+        <span class="stat-dot" style="background: #3b82f6"></span>
+        <span class="column-title">Active</span>
+        <span class="column-count">${activeSprints.length}</span>
+      </div>
+      ${activeSprints.length ? activeSprints.map(renderSprintCard).join("") : '<div class="empty-state">No active sprints</div>'}
+    </div>
+
+    <div class="column">
+      <div class="column-header">
+        <span class="stat-dot" style="background: #22c55e"></span>
+        <span class="column-title">Completed</span>
+        <span class="column-count">${completedSprints.length}</span>
+      </div>
+      ${completedSprints.length ? completedSprints.map(renderSprintCard).join("") : '<div class="empty-state">No completed sprints</div>'}
+    </div>
+  </div>
+  `}
 
   <script>
     // Auto-refresh every 5 seconds
@@ -359,12 +535,14 @@ export async function startWebServer(port: number = 3333): Promise<void> {
 
       if (url.pathname === "/" || url.pathname === "/index.html") {
         const projects = projectService.listProjects();
+        const view = (url.searchParams.get("view") || "tasks") as "tasks" | "sprints";
         const query: { include_archived: boolean; project_id?: string } = { include_archived: false };
         if (projectId) {
           query.project_id = projectId;
         }
         const freshTasks = taskService.listTasks(query);
-        return new Response(generateHtml(freshTasks, projects, projectId), {
+        const sprints = view === "sprints" ? sprintService.listSprintsWithCounts(false) : [];
+        return new Response(generateHtml(freshTasks, projects, projectId, view, sprints), {
           headers: { "Content-Type": "text/html" },
         });
       }
