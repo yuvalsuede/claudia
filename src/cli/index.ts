@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+import pkg from "../../package.json";
 import { createTaskCommand } from "./commands/task.js";
 import { createDbCommand } from "./commands/db.js";
 import { createMcpCommand } from "./commands/mcp.js";
@@ -16,7 +17,7 @@ const program = new Command();
 program
   .name("claudia")
   .description("CLI task manager for Claude")
-  .version("0.1.0");
+  .version(pkg.version);
 
 // Quick add shortcut: claudia !! "task title"
 program
