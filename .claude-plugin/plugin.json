@@ -1,28 +1,8 @@
 {
   "name": "claudia",
-  "description": "AI-native task management system with MCP server. Enables Claude to track progress, coordinate multi-agent work, and manage hierarchical tasks with dependencies, sprints, and acceptance criteria.",
+  "description": "AI-native task management system. Track progress, coordinate multi-agent work, manage hierarchical tasks with dependencies, sprints, acceptance criteria, and a web dashboard.",
   "version": "0.1.2",
   "author": {
-    "name": "Yuval Suede",
-    "email": "yuval@claudiacli.com"
-  },
-  "homepage": "https://claudiacli.com",
-  "repository": "https://github.com/yuvalsuede/claudia",
-  "license": "GPL-3.0",
-  "keywords": [
-    "task-manager",
-    "ai-agents",
-    "mcp",
-    "project-management",
-    "multi-agent",
-    "kanban",
-    "sprints"
-  ],
-  "mcpServers": {
-    "claudia": {
-      "command": "bunx",
-      "args": ["claudia-cli", "mcp"],
-      "env": {}
-    }
+    "name": "Yuval Suede"
   }
 }
