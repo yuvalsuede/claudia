@@ -300,11 +300,17 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
 }
 
 export async function startWebServer(port: number = 3333): Promise<void> {
+  // Auto-detect current project from cwd
+  const currentProject = projectService.getCurrentProject();
+  const defaultProjectId = currentProject?.id;
+
   const server = Bun.serve({
     port,
     fetch(req) {
       const url = new URL(req.url);
-      const projectId = url.searchParams.get("project") || undefined;
+      // Use project from URL, or default to current project (not "all")
+      const projectParam = url.searchParams.get("project");
+      const projectId = projectParam !== null ? (projectParam || undefined) : defaultProjectId;
 
       if (url.pathname === "/" || url.pathname === "/index.html") {
         const projects = projectService.listProjects();
