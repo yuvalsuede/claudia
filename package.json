@@ -6,7 +6,7 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yuvalsuede/claudia.git"
+    "url": "git+https://github.com/yuvalsuede/claudia.git"
   },
   "bugs": {
     "url": "https://github.com/yuvalsuede/claudia/issues"
@@ -27,7 +27,7 @@
   "type": "module",
   "main": "./src/cli/index.ts",
   "bin": {
-    "claudia": "./src/cli/index.ts"
+    "claudia": "src/cli/index.ts"
   },
   "files": [
     "src",
