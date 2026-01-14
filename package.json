@@ -1,7 +1,27 @@
 {
   "name": "claudia",
   "version": "0.1.0",
-  "description": "CLI task manager for AI agents",
+  "description": "A task management system built for AI agents with MCP server support",
+  "author": "Anthropic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropics/claudia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anthropics/claudia/issues"
+  },
+  "homepage": "https://github.com/anthropics/claudia#readme",
+  "keywords": [
+    "task-manager",
+    "ai-agents",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "cli",
+    "project-management",
+    "multi-agent"
+  ],
   "type": "module",
   "bin": {
     "claudia": "./src/cli/index.ts"
@@ -22,5 +42,8 @@
   "devDependencies": {
     "@types/bun": "^1.1.14",
     "typescript": "^5.7.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }
