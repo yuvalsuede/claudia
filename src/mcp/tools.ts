@@ -20,7 +20,7 @@ export const TaskCreateInput = z.object({
   priority: z.enum(["p0", "p1", "p2", "p3"]).optional().describe("Task priority"),
   task_type: TaskTypeEnum.optional().describe("Task type (feature, bugfix, planning, development, ui, refactor, docs, test, chore)"),
   parent_id: z.string().uuid().optional().describe("Parent task ID"),
-  status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("Initial status"),
+  status: z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"]).optional().describe("Initial status"),
   tags: z.array(z.string()).optional().describe("Task tags"),
   assignee: z.string().optional().describe("Task assignee"),
   due_at: z.string().datetime().optional().describe("Due date (ISO8601)"),
@@ -40,7 +40,7 @@ export const TaskUpdateInput = z.object({
   priority: z.enum(["p0", "p1", "p2", "p3"]).nullable().optional().describe("New priority"),
   task_type: TaskTypeEnum.nullable().optional().describe("New task type"),
   parent_id: z.string().uuid().nullable().optional().describe("New parent ID (null to clear)"),
-  status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional().describe("New status"),
+  status: z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"]).optional().describe("New status"),
   tags: z.array(z.string()).optional().describe("New tags"),
   assignee: z.string().nullable().optional().describe("New assignee"),
   due_at: z.string().datetime().nullable().optional().describe("New due date"),
@@ -53,7 +53,7 @@ export const TaskDeleteInput = z.object({
 });
 
 export const TaskListInput = z.object({
-  status: z.array(z.enum(["pending", "in_progress", "blocked", "completed", "archived"])).optional().describe("Filter by status"),
+  status: z.array(z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"])).optional().describe("Filter by status"),
   priority: z.array(z.enum(["p0", "p1", "p2", "p3"])).optional().describe("Filter by priority"),
   task_type: z.array(TaskTypeEnum).optional().describe("Filter by task type"),
   parent_id: z.string().uuid().optional().describe("Filter by parent task ID"),
@@ -66,7 +66,7 @@ export const TaskListInput = z.object({
 
 export const TaskTransitionInput = z.object({
   id: z.string().uuid().describe("Task ID"),
-  to: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).describe("Target status"),
+  to: z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"]).describe("Target status"),
 });
 
 export const TaskContextSetInput = z.object({
@@ -106,7 +106,7 @@ export const BulkCreateInput = z.object({
 export const BulkUpdateInput = z.object({
   ids: z.array(z.string().uuid()).describe("Task IDs to update"),
   updates: z.object({
-    status: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).optional(),
+    status: z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"]).optional(),
     priority: z.enum(["p0", "p1", "p2", "p3"]).nullable().optional(),
     sprint_id: z.string().uuid().nullable().optional(),
     assignee: z.string().nullable().optional(),
@@ -115,7 +115,7 @@ export const BulkUpdateInput = z.object({
 
 export const BulkTransitionInput = z.object({
   ids: z.array(z.string().uuid()).describe("Task IDs to transition"),
-  to: z.enum(["pending", "in_progress", "blocked", "completed", "archived"]).describe("Target status"),
+  to: z.enum(["pending", "in_progress", "verification", "blocked", "completed", "archived"]).describe("Target status"),
   skip_invalid: z.boolean().optional().describe("Skip tasks that fail validation"),
 });
 
@@ -175,6 +175,18 @@ export const TaskVerifyInput = z.object({
 
 export const TaskVerificationStatusInput = z.object({
   task_id: z.string().uuid().describe("Task ID"),
+});
+
+// Handoff and abandon inputs (REQ-007)
+export const TaskHandoffInput = z.object({
+  task_id: z.string().uuid().describe("Task ID to hand off"),
+  to_agent_id: z.string().min(1).describe("Agent ID to hand off to"),
+  notes: z.string().max(2000).optional().describe("Handoff notes for the receiving agent"),
+});
+
+export const TaskAbandonInput = z.object({
+  task_id: z.string().uuid().describe("Task ID to abandon"),
+  reason: z.string().min(1).max(2000).describe("Reason for abandoning the task"),
 });
 
 // Project inputs
@@ -324,6 +336,38 @@ Returns all criteria with their verification status and overall progress.`,
       required: ["task_id"],
     },
   },
+  // HANDOFF AND ABANDON (REQ-007)
+  {
+    name: "task_handoff",
+    description: `Hand off a task to another agent.
+Transfers ownership of the task while preserving its current status.
+Optionally include notes for the receiving agent.
+Handoff history is recorded in the task context.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID to hand off" },
+        to_agent_id: { type: "string", description: "Agent ID to receive the task" },
+        notes: { type: "string", description: "Notes for the receiving agent" },
+      },
+      required: ["task_id", "to_agent_id"],
+    },
+  },
+  {
+    name: "task_abandon",
+    description: `Abandon a task and return it to pending status.
+Use when you cannot complete a task and need to release it.
+A reason is required and will be recorded in the task context.
+The task becomes available for other agents to claim.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID to abandon" },
+        reason: { type: "string", description: "Reason for abandoning (required)" },
+      },
+      required: ["task_id", "reason"],
+    },
+  },
   // WORKFLOW RULES - READ THIS FIRST
   {
     name: "workflow_info",
@@ -353,7 +397,7 @@ Returns the current workflow rules.`,
         description: { type: "string", description: "Task description" },
         priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], description: "Priority level" },
         parent_id: { type: "string", description: "Parent task UUID" },
-        status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Initial status" },
+        status: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"], description: "Initial status" },
         tags: { type: "array", items: { type: "string" }, description: "Task tags" },
         assignee: { type: "string", description: "Task assignee" },
         due_at: { type: "string", description: "Due date (ISO8601)" },
@@ -390,7 +434,7 @@ Returns the current workflow rules.`,
         description: { type: "string", description: "New description" },
         priority: { type: ["string", "null"], enum: ["p0", "p1", "p2", "p3", null], description: "New priority (null to clear)" },
         parent_id: { type: ["string", "null"], description: "New parent UUID (null to clear)" },
-        status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "New status" },
+        status: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"], description: "New status" },
         tags: { type: "array", items: { type: "string" }, description: "New tags" },
         assignee: { type: ["string", "null"], description: "New assignee (null to clear)" },
         due_at: { type: ["string", "null"], description: "New due date (null to clear)" },
@@ -416,7 +460,7 @@ Returns the current workflow rules.`,
     inputSchema: {
       type: "object" as const,
       properties: {
-        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] }, description: "Filter by status" },
+        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"] }, description: "Filter by status" },
         priority: { type: "array", items: { type: "string", enum: ["p0", "p1", "p2", "p3"] }, description: "Filter by priority" },
         parent_id: { type: "string", description: "Filter by parent task UUID" },
         assignee: { type: "string", description: "Filter by assignee" },
@@ -434,7 +478,7 @@ Returns the current workflow rules.`,
       type: "object" as const,
       properties: {
         id: { type: "string", description: "Task UUID" },
-        to: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Target status" },
+        to: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"], description: "Target status" },
       },
       required: ["id", "to"],
     },
@@ -521,7 +565,7 @@ Returns the current workflow rules.`,
         updates: {
           type: "object",
           properties: {
-            status: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] },
+            status: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"] },
             priority: { type: ["string", "null"], enum: ["p0", "p1", "p2", "p3", null] },
             sprint_id: { type: ["string", "null"] },
             assignee: { type: ["string", "null"] },
@@ -539,7 +583,7 @@ Returns the current workflow rules.`,
       type: "object" as const,
       properties: {
         ids: { type: "array", items: { type: "string" }, description: "Task UUIDs to transition" },
-        to: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"], description: "Target status" },
+        to: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"], description: "Target status" },
         skip_invalid: { type: "boolean", description: "Skip tasks that fail validation instead of failing entirely" },
       },
       required: ["ids", "to"],
@@ -782,7 +826,7 @@ Returns the current workflow rules.`,
     inputSchema: {
       type: "object" as const,
       properties: {
-        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "blocked", "completed", "archived"] }, description: "Filter by status" },
+        status: { type: "array", items: { type: "string", enum: ["pending", "in_progress", "verification", "blocked", "completed", "archived"] }, description: "Filter by status" },
         priority: { type: "array", items: { type: "string", enum: ["p0", "p1", "p2", "p3"] }, description: "Filter by priority" },
         task_type: { type: "array", items: { type: "string", enum: ["feature", "bugfix", "planning", "development", "ui", "refactor", "docs", "test", "chore"] }, description: "Filter by task type" },
         limit: { type: "integer", description: "Maximum tasks to show" },

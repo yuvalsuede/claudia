@@ -3,6 +3,7 @@ import { z } from "zod";
 export const TaskStatus = z.enum([
   "pending",
   "in_progress",
+  "verification",  // REQ-013: Verification gate before completion
   "blocked",
   "completed",
   "archived",

@@ -1,10 +1,13 @@
 import type { TaskStatus } from "../schemas/task.js";
 
 // Define valid state transitions
-// Default workflow: pending → in_progress → completed; any → blocked; any → archived
+// Workflow: pending → in_progress → verification → completed
+// Tasks can skip verification if no acceptance criteria defined
+// REQ-013: Added verification status between in_progress and completed
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   pending: ["in_progress", "blocked", "archived"],
-  in_progress: ["pending", "completed", "blocked", "archived"],
+  in_progress: ["pending", "verification", "completed", "blocked", "archived"],
+  verification: ["in_progress", "completed", "blocked", "archived"], // Can go back to in_progress or complete
   blocked: ["pending", "in_progress", "archived"],
   completed: ["in_progress", "archived"], // Allow reopening
   archived: [], // Terminal state - no transitions out

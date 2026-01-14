@@ -84,6 +84,85 @@ export function finishTask(id: string, agentId: string, summary?: string): Task 
   return updated;
 }
 
+// COMPOUND OPERATION (REQ-007): Hand off task to another agent
+export function handoffTask(id: string, fromAgentId: string, toAgentId: string, notes?: string): Task {
+  const task = taskRepo.getTaskById(id);
+  if (!task) {
+    throw new NotFoundError("Task", id);
+  }
+
+  // Verify current agent owns this task
+  if (task.agent_id && task.agent_id !== fromAgentId) {
+    throw new ConflictError(`Task is claimed by another agent: ${task.agent_id}`);
+  }
+
+  if (!task.agent_id) {
+    throw new ValidationError("Task is not claimed - cannot hand off an unclaimed task");
+  }
+
+  // Update task with new agent and optional handoff notes
+  const updates: Record<string, unknown> = {
+    agent_id: toAgentId,
+  };
+
+  if (notes) {
+    const existingContext = task.context ?? {};
+    const handoffHistory = (existingContext.handoff_history as Array<unknown>) ?? [];
+    handoffHistory.push({
+      from: fromAgentId,
+      to: toAgentId,
+      notes,
+      timestamp: new Date().toISOString(),
+    });
+    updates.context = { ...existingContext, handoff_history: handoffHistory };
+  }
+
+  const updated = taskRepo.updateTask(id, updates);
+  if (!updated) {
+    throw new ConflictError("Failed to hand off task");
+  }
+  return updated;
+}
+
+// COMPOUND OPERATION (REQ-007): Abandon task back to pending
+export function abandonTask(id: string, agentId: string, reason: string): Task {
+  const task = taskRepo.getTaskById(id);
+  if (!task) {
+    throw new NotFoundError("Task", id);
+  }
+
+  // Verify agent owns this task (or it's unclaimed)
+  if (task.agent_id && task.agent_id !== agentId) {
+    throw new ConflictError(`Task is claimed by another agent: ${task.agent_id}`);
+  }
+
+  if (task.status === "completed") {
+    throw new ValidationError("Cannot abandon a completed task");
+  }
+
+  // Record abandonment reason and reset to pending
+  const existingContext = task.context ?? {};
+  const abandonHistory = (existingContext.abandon_history as Array<unknown>) ?? [];
+  abandonHistory.push({
+    agent: agentId,
+    reason,
+    previous_status: task.status,
+    timestamp: new Date().toISOString(),
+  });
+
+  const updates: Record<string, unknown> = {
+    agent_id: null,
+    status: "pending",
+    context: { ...existingContext, abandon_history: abandonHistory },
+  };
+
+  const updated = taskRepo.updateTask(id, updates);
+  if (!updated) {
+    throw new ConflictError("Failed to abandon task");
+  }
+  return updated;
+}
+
 // VERIFICATION (REQ-010): Verify an acceptance criterion
 export interface VerificationResult {
   task: Task;

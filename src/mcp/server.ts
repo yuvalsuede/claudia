@@ -42,6 +42,8 @@ import {
   TaskWorkspaceInput,
   TaskVerifyInput,
   TaskVerificationStatusInput,
+  TaskHandoffInput,
+  TaskAbandonInput,
   ProjectCreateInput,
   ProjectReadInput,
   ProjectUpdateInput,
@@ -213,6 +215,34 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
     case "task_verification_status": {
       const input = TaskVerificationStatusInput.parse(args);
       return taskService.getVerificationStatus(input.task_id);
+    }
+
+    // HANDOFF AND ABANDON (REQ-007)
+    case "task_handoff": {
+      const input = TaskHandoffInput.parse(args);
+      const task = taskService.handoffTask(
+        input.task_id,
+        SESSION_AGENT_ID,
+        input.to_agent_id,
+        input.notes
+      );
+      return {
+        task,
+        _info: `Task handed off to ${input.to_agent_id}`,
+      };
+    }
+
+    case "task_abandon": {
+      const input = TaskAbandonInput.parse(args);
+      const task = taskService.abandonTask(
+        input.task_id,
+        SESSION_AGENT_ID,
+        input.reason
+      );
+      return {
+        task,
+        _info: "Task abandoned and returned to pending status",
+      };
     }
 
     case "workflow_info": {
