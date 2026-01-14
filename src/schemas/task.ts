@@ -35,6 +35,17 @@ export const TaskImage = z.object({
 });
 export type TaskImage = z.infer<typeof TaskImage>;
 
+// Acceptance criteria for task verification (REQ-010)
+export const AcceptanceCriterion = z.object({
+  id: z.string(),
+  description: z.string().min(1).max(1000),
+  verified: z.boolean().default(false),
+  verified_at: z.string().datetime().optional(),
+  verified_by: z.string().optional(),       // Agent ID that verified
+  evidence: z.string().max(5000).optional(), // Evidence/notes for verification
+});
+export type AcceptanceCriterion = z.infer<typeof AcceptanceCriterion>;
+
 export const TaskSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).max(500),
@@ -53,12 +64,18 @@ export const TaskSchema = z.object({
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
   images: z.array(TaskImage).optional(), // Attached images
+  acceptance_criteria: z.array(AcceptanceCriterion).optional(), // Verification criteria (REQ-010)
   version: z.number().int().positive().default(1),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
 
 export type Task = z.infer<typeof TaskSchema>;
+
+// Input schema for acceptance criteria (simplified - auto-generates id)
+export const AcceptanceCriterionInput = z.object({
+  description: z.string().min(1).max(1000),
+});
 
 export const CreateTaskInput = z.object({
   title: z.string().min(1).max(500),
@@ -77,6 +94,7 @@ export const CreateTaskInput = z.object({
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
   images: z.array(TaskImage).optional(),
+  acceptance_criteria: z.array(AcceptanceCriterionInput).optional(), // Verification criteria
 });
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInput>;
@@ -98,6 +116,7 @@ export const UpdateTaskInput = z.object({
   context: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
   images: z.array(TaskImage).optional(),
+  acceptance_criteria: z.array(AcceptanceCriterion).optional(), // Full criteria for updates
   version: z.number().int().positive().optional(), // For optimistic locking
 });
 

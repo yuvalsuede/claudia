@@ -20,6 +20,7 @@ interface TaskRow {
   context: string | null;
   metadata: string | null;
   images: string | null;
+  acceptance_criteria: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,7 @@ function rowToTask(row: TaskRow): Task {
     context: row.context ? JSON.parse(row.context) : undefined,
     metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
     images: row.images ? JSON.parse(row.images) : undefined,
+    acceptance_criteria: row.acceptance_criteria ? JSON.parse(row.acceptance_criteria) : undefined,
     version: row.version,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -54,12 +56,24 @@ export function createTask(id: string, input: CreateTaskInput): Task {
   const db = getDb();
   const now = new Date().toISOString();
 
+  // Process acceptance criteria - auto-generate IDs if provided as simple descriptions
+  let acceptanceCriteria = null;
+  if (input.acceptance_criteria && input.acceptance_criteria.length > 0) {
+    acceptanceCriteria = JSON.stringify(
+      input.acceptance_criteria.map((ac, idx) => ({
+        id: `ac-${idx + 1}`,
+        description: ac.description,
+        verified: false,
+      }))
+    );
+  }
+
   const stmt = db.prepare(`
     INSERT INTO tasks (
       id, title, description, status, priority, task_type, parent_id, sprint_id, project_id,
-      due_at, tags, assignee, agent_id, estimate, context, metadata, images, version, created_at, updated_at
+      due_at, tags, assignee, agent_id, estimate, context, metadata, images, acceptance_criteria, version, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?
     )
   `);
 
@@ -81,6 +95,7 @@ export function createTask(id: string, input: CreateTaskInput): Task {
     input.context ? JSON.stringify(input.context) : null,
     input.metadata ? JSON.stringify(input.metadata) : null,
     input.images ? JSON.stringify(input.images) : null,
+    acceptanceCriteria,
     now,
     now
   );
@@ -172,6 +187,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
   if (input.images !== undefined) {
     updates.push("images = ?");
     values.push(JSON.stringify(input.images));
+  }
+  if (input.acceptance_criteria !== undefined) {
+    updates.push("acceptance_criteria = ?");
+    values.push(JSON.stringify(input.acceptance_criteria));
   }
 
   values.push(id);
@@ -312,11 +331,23 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
 
   const transaction = db.transaction(() => {
     for (const { id, input } of tasks) {
+      // Process acceptance criteria
+      let acceptanceCriteria = null;
+      if (input.acceptance_criteria && input.acceptance_criteria.length > 0) {
+        acceptanceCriteria = JSON.stringify(
+          input.acceptance_criteria.map((ac, idx) => ({
+            id: `ac-${idx + 1}`,
+            description: ac.description,
+            verified: false,
+          }))
+        );
+      }
+
       db.prepare(`
         INSERT INTO tasks (
           id, title, description, status, priority, task_type, parent_id, sprint_id, project_id,
-          due_at, tags, assignee, agent_id, estimate, context, metadata, images, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+          due_at, tags, assignee, agent_id, estimate, context, metadata, images, acceptance_criteria, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         id,
         input.title,
@@ -335,6 +366,7 @@ export function createTasksBulk(tasks: Array<{ id: string; input: CreateTaskInpu
         input.context ? JSON.stringify(input.context) : null,
         input.metadata ? JSON.stringify(input.metadata) : null,
         input.images ? JSON.stringify(input.images) : null,
+        acceptanceCriteria,
         now,
         now
       );

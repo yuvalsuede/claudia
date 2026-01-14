@@ -166,6 +166,17 @@ export const TaskWorkspaceInput = z.object({
   include_completed: z.boolean().optional().describe("Include recently completed tasks (last 24h)"),
 });
 
+// Verification inputs (REQ-010)
+export const TaskVerifyInput = z.object({
+  task_id: z.string().uuid().describe("Task ID"),
+  criterion_id: z.string().describe("Acceptance criterion ID (e.g., 'ac-1')"),
+  evidence: z.string().max(5000).optional().describe("Evidence or notes for verification"),
+});
+
+export const TaskVerificationStatusInput = z.object({
+  task_id: z.string().uuid().describe("Task ID"),
+});
+
 // Project inputs
 export const ProjectCreateInput = z.object({
   name: z.string().min(1).max(200).describe("Project name"),
@@ -283,6 +294,36 @@ This helps you resume work or pick up where another session left off.`,
       },
     },
   },
+  // VERIFICATION TOOLS (REQ-010)
+  {
+    name: "task_verify",
+    description: `VERIFY: Mark an acceptance criterion as verified with optional evidence.
+Use this to record that you've verified a specific acceptance criterion on a task.
+Returns the updated criterion and overall verification progress.
+
+Criterion IDs are like 'ac-1', 'ac-2', etc. Use task_verification_status to see all criteria.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID" },
+        criterion_id: { type: "string", description: "Criterion ID (e.g., 'ac-1', 'ac-2')" },
+        evidence: { type: "string", description: "Evidence or notes for this verification" },
+      },
+      required: ["task_id", "criterion_id"],
+    },
+  },
+  {
+    name: "task_verification_status",
+    description: `Get verification status for a task's acceptance criteria.
+Returns all criteria with their verification status and overall progress.`,
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: { type: "string", description: "Task UUID" },
+      },
+      required: ["task_id"],
+    },
+  },
   // WORKFLOW RULES - READ THIS FIRST
   {
     name: "workflow_info",
@@ -304,7 +345,7 @@ Returns the current workflow rules.`,
   },
   {
     name: "task_create",
-    description: "Create a new task with optional parent, priority, and metadata. Returns the created task.",
+    description: "Create a new task with optional parent, priority, acceptance criteria, and metadata. Returns the created task.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -318,6 +359,11 @@ Returns the current workflow rules.`,
         due_at: { type: "string", description: "Due date (ISO8601)" },
         context: { type: "object", description: "Agent context (JSON, max 64KB)" },
         metadata: { type: "object", description: "Custom metadata" },
+        acceptance_criteria: {
+          type: "array",
+          items: { type: "object", properties: { description: { type: "string" } }, required: ["description"] },
+          description: "Acceptance criteria that must be verified before completion. Each item needs a 'description' field.",
+        },
       },
       required: ["title"],
     },

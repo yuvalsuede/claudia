@@ -40,6 +40,8 @@ import {
   TaskStartInput,
   TaskFinishInput,
   TaskWorkspaceInput,
+  TaskVerifyInput,
+  TaskVerificationStatusInput,
   ProjectCreateInput,
   ProjectReadInput,
   ProjectUpdateInput,
@@ -189,6 +191,28 @@ async function executeToolCall(name: string, args: Record<string, unknown>): Pro
         }
       }
       return workspace;
+    }
+
+    // VERIFICATION TOOLS (REQ-010)
+    case "task_verify": {
+      const input = TaskVerifyInput.parse(args);
+      const result = taskService.verifyTaskCriterion(
+        input.task_id,
+        input.criterion_id,
+        SESSION_AGENT_ID,
+        input.evidence
+      );
+      return {
+        ...result,
+        _info: result.all_verified
+          ? "All acceptance criteria verified! Task is ready to complete."
+          : `Verified ${result.verification_progress.verified}/${result.verification_progress.total} criteria.`,
+      };
+    }
+
+    case "task_verification_status": {
+      const input = TaskVerificationStatusInput.parse(args);
+      return taskService.getVerificationStatus(input.task_id);
     }
 
     case "workflow_info": {

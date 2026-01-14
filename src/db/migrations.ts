@@ -109,6 +109,13 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
     `,
   },
+  {
+    version: 5,
+    name: "add_acceptance_criteria",
+    up: `
+      ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(db: Database): void {

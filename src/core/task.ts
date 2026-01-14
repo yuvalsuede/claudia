@@ -6,6 +6,7 @@ import {
   UpdateTaskInput,
   ListTasksQuery,
   type Task,
+  type AcceptanceCriterion,
 } from "../schemas/task.js";
 import { NotFoundError, ValidationError, ConflictError } from "../utils/errors.js";
 import { canTransition, getAllowedTransitions } from "./workflow.js";
@@ -81,6 +82,100 @@ export function finishTask(id: string, agentId: string, summary?: string): Task 
     throw new ConflictError("Failed to complete task");
   }
   return updated;
+}
+
+// VERIFICATION (REQ-010): Verify an acceptance criterion
+export interface VerificationResult {
+  task: Task;
+  criterion: AcceptanceCriterion;
+  all_verified: boolean;
+  verification_progress: { verified: number; total: number };
+}
+
+export function verifyTaskCriterion(
+  taskId: string,
+  criterionId: string,
+  agentId: string,
+  evidence?: string
+): VerificationResult {
+  const task = taskRepo.getTaskById(taskId);
+  if (!task) {
+    throw new NotFoundError("Task", taskId);
+  }
+
+  if (!task.acceptance_criteria || task.acceptance_criteria.length === 0) {
+    throw new ValidationError("Task has no acceptance criteria defined");
+  }
+
+  const criterionIndex = task.acceptance_criteria.findIndex(c => c.id === criterionId);
+  if (criterionIndex === -1) {
+    throw new NotFoundError("Criterion", criterionId);
+  }
+
+  const criterion = task.acceptance_criteria[criterionIndex];
+  if (criterion.verified) {
+    // Already verified - return current state
+    const verified = task.acceptance_criteria.filter(c => c.verified).length;
+    return {
+      task,
+      criterion,
+      all_verified: verified === task.acceptance_criteria.length,
+      verification_progress: { verified, total: task.acceptance_criteria.length },
+    };
+  }
+
+  // Update the criterion
+  const updatedCriteria: AcceptanceCriterion[] = [...task.acceptance_criteria];
+  updatedCriteria[criterionIndex] = {
+    ...criterion,
+    verified: true,
+    verified_at: new Date().toISOString(),
+    verified_by: agentId,
+    evidence: evidence,
+  };
+
+  const updatedTask = taskRepo.updateTask(taskId, { acceptance_criteria: updatedCriteria });
+  if (!updatedTask) {
+    throw new ConflictError("Failed to update verification status");
+  }
+
+  const verified = updatedCriteria.filter(c => c.verified).length;
+  return {
+    task: updatedTask,
+    criterion: updatedCriteria[criterionIndex],
+    all_verified: verified === updatedCriteria.length,
+    verification_progress: { verified, total: updatedCriteria.length },
+  };
+}
+
+// Get verification status for a task
+export function getVerificationStatus(taskId: string): {
+  has_criteria: boolean;
+  criteria: AcceptanceCriterion[];
+  all_verified: boolean;
+  progress: { verified: number; total: number };
+} {
+  const task = taskRepo.getTaskById(taskId);
+  if (!task) {
+    throw new NotFoundError("Task", taskId);
+  }
+
+  if (!task.acceptance_criteria || task.acceptance_criteria.length === 0) {
+    return {
+      has_criteria: false,
+      criteria: [],
+      all_verified: true, // No criteria means nothing to verify
+      progress: { verified: 0, total: 0 },
+    };
+  }
+
+  const verified = task.acceptance_criteria.filter(c => c.verified).length;
+  return {
+    has_criteria: true,
+    criteria: task.acceptance_criteria,
+    all_verified: verified === task.acceptance_criteria.length,
+    progress: { verified, total: task.acceptance_criteria.length },
+  };
 }
 
 export function getTask(id: string): Task {
