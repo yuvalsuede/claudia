@@ -190,6 +190,12 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
       color: #525252;
       font-size: 0.875rem;
     }
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-left: 1rem;
+    }
     .project-select {
       background: #171717;
       border: 1px solid #262626;
@@ -198,7 +204,6 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
       border-radius: 8px;
       font-size: 0.875rem;
       cursor: pointer;
-      margin-left: 1rem;
     }
     .project-select:hover {
       border-color: #ff3399;
@@ -206,6 +211,25 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
     .project-select:focus {
       outline: none;
       border-color: #ff3399;
+    }
+    .clear-btn {
+      background: #262626;
+      border: 1px solid #404040;
+      color: #a3a3a3;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .clear-btn:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #fff;
+    }
+    .clear-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     @media (max-width: 1024px) {
       .board { grid-template-columns: repeat(2, 1fr); }
@@ -229,10 +253,13 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
       <circle cx="16" cy="16" r="4" fill="#ffcc00"/>
     </svg>
     <h1>Claudia</h1>
-    <select class="project-select" onchange="window.location.href='/?project=' + this.value">
-      <option value="">All Projects</option>
-      ${projects.map(p => `<option value="${p.id}" ${selectedProjectId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
-    </select>
+    <div class="header-controls">
+      <select class="project-select" onchange="window.location.href='/?project=' + this.value">
+        <option value="">All Projects</option>
+        ${projects.map(p => `<option value="${p.id}" ${selectedProjectId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+      </select>
+      ${completed.length > 0 ? `<button class="clear-btn" onclick="clearCompleted()">Clear ${completed.length} Completed</button>` : ''}
+    </div>
     <div class="stats">
       <div class="stat">
         <span class="stat-dot" style="background: #fbbf24"></span>
@@ -294,6 +321,24 @@ function generateHtml(tasks: Task[], projects: Project[], selectedProjectId?: st
   <script>
     // Auto-refresh every 5 seconds
     setTimeout(() => location.reload(), 5000);
+
+    async function clearCompleted() {
+      if (!confirm('Archive all completed tasks? This cannot be undone.')) return;
+      const btn = document.querySelector('.clear-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Clearing...';
+      }
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const projectId = params.get('project') || '';
+        await fetch('/api/clear-completed?project=' + projectId, { method: 'POST' });
+        location.reload();
+      } catch (e) {
+        alert('Failed to clear completed tasks');
+        if (btn) btn.disabled = false;
+      }
+    }
   </script>
 </body>
 </html>`;
@@ -338,6 +383,28 @@ export async function startWebServer(port: number = 3333): Promise<void> {
       if (url.pathname === "/api/projects") {
         const projects = projectService.listProjects();
         return new Response(JSON.stringify(projects), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (url.pathname === "/api/clear-completed" && req.method === "POST") {
+        const clearProjectParam = url.searchParams.get("project");
+        const clearProjectId = clearProjectParam || undefined;
+        const query: { status: ["completed"]; project_id?: string } = { status: ["completed"] };
+        if (clearProjectId) {
+          query.project_id = clearProjectId;
+        }
+        const completedTasks = taskService.listTasks(query);
+        let archived = 0;
+        for (const task of completedTasks) {
+          try {
+            taskService.transitionTask(task.id, "archived");
+            archived++;
+          } catch {
+            // Skip tasks that can't be archived
+          }
+        }
+        return new Response(JSON.stringify({ archived, total: completedTasks.length }), {
           headers: { "Content-Type": "application/json" },
         });
       }
