@@ -754,4 +754,4 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## License
 
-MIT - see [LICENSE](LICENSE) for details.
+GPLv3 - see [LICENSE](LICENSE) for details.
