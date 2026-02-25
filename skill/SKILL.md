@@ -74,8 +74,8 @@ agent-media ugc "your script text here..." [--voice <name>] [--face-url <path>] 
 # With face photo for talking heads + auto voice detection
 agent-media ugc "script..." --face-url ./photo.png --sync
 
-# With all options
-agent-media ugc "script..." --face-url ./photo.png --style hormozi --duration 30 --aspect 9:16 --music chill --cta "Follow for more" --sync
+# With tone and style options
+agent-media ugc "script..." --face-url ./photo.png --tone energetic --style tiktok --duration 30 --aspect 9:16 --music chill --cta "Follow for more" --sync
 ```
 
 ### Add subtitles to any video
@@ -117,10 +117,11 @@ agent-media doctor           # Diagnose setup issues
    - High-quality image → `flux2-pro`
 3. **For UGC content** → use `agent-media ugc` with the full script.
 4. **Always suggest `--face-url`** when the user has a face photo for talking heads.
-5. **Subtitle styles**: hormozi (default), minimal, bold, karaoke, clean.
-6. **UGC durations**: 15, 30, 60, or 120 seconds.
-7. **Auto voice detection** works when `--face-url` is provided without explicit `--voice`.
-8. **Use --sync for interactive use** so the user gets the result immediately.
-9. **Duration defaults**: Most video models default to 5s. Use `--duration` for longer (up to 15s depending on model and plan).
-10. **Show the result**: After a sync job completes, share the output URL or downloaded file path.
-11. If generation fails, run `agent-media inspect <job-id>` to diagnose, then suggest `agent-media retry <job-id>`.
+5. **Subtitle styles**: hormozi (default), minimal, bold, karaoke, clean, tiktok (huge white + black stroke), neon (cyan glow).
+6. **Voice tones**: energetic (fast, expressive), calm (steady), confident (balanced), dramatic (maximum expressiveness). Use `--tone` flag.
+7. **UGC durations**: 15, 30, 60, or 120 seconds.
+8. **Auto voice detection** works when `--face-url` is provided without explicit `--voice`.
+9. **Use --sync for interactive use** so the user gets the result immediately.
+10. **Duration defaults**: Most video models default to 5s. Use `--duration` for longer (up to 15s depending on model and plan).
+11. **Show the result**: After a sync job completes, share the output URL or downloaded file path.
+12. If generation fails, run `agent-media inspect <job-id>` to diagnose, then suggest `agent-media retry <job-id>`.
