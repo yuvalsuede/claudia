@@ -71,7 +71,7 @@ agent-media list --model kling3
 # Generate UGC video from a script
 agent-media ugc "your script text here..." [--voice <name>] [--face-url <path>] [--style <style>] [--sync]
 
-# With face photo for talking heads + auto voice detection
+# With face photo as image reference for cinematic B-roll + auto voice detection
 agent-media ugc "script..." --face-url ./photo.png --sync
 
 # With tone and style options
@@ -116,10 +116,10 @@ agent-media doctor           # Diagnose setup issues
    - Quick image → `flux2-flex`
    - High-quality image → `flux2-pro`
 3. **For UGC content** → use `agent-media ugc` with the full script.
-4. **Always suggest `--face-url`** when the user has a face photo for talking heads.
+4. **Always suggest `--face-url`** when the user has a face photo — it's used as an image reference for cinematic B-roll scenes (not lip-sync).
 5. **Subtitle styles**: hormozi (default), minimal, bold, karaoke, clean, tiktok (huge white + black stroke), neon (cyan glow).
 6. **Voice tones**: energetic (fast, expressive), calm (steady), confident (balanced), dramatic (maximum expressiveness). Use `--tone` flag.
-7. **UGC durations**: 15, 30, 60, or 120 seconds.
+7. **UGC durations**: 15 or 30 seconds (max 30s).
 8. **Auto voice detection** works when `--face-url` is provided without explicit `--voice`.
 9. **Use --sync for interactive use** so the user gets the result immediately.
 10. **Duration defaults**: Most video models default to 5s. Use `--duration` for longer (up to 15s depending on model and plan).
